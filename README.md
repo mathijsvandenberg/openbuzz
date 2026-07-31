@@ -22,12 +22,14 @@ Format work is done for the layers that matter most; nothing renders yet.
 | `.PAK` archives | **Solved** — plain ZIP, stored. 4953 files extract in ~9s. |
 | Lua `.clu` bytecode | **Solved** — custom Lua 5.0 fully decoded, 149/149 chunks. See [lua-format.md](docs/lua-format.md). |
 | Native API surface | **Mapped** — 688 host functions. See [host-api.md](docs/host-api.md). |
-| Text / questions | Extracted (`.str`/`.ndx`), format not yet parsed |
-| `.vgp` audio | Not started — PS2 ADPCM in a custom container |
+| Text / questions | Extracted; plain newline-separated Latin-1 in `.str`, `hash id` pairs in `.ndx` |
+| `.vgp` audio | **Structure solved** — 2336-byte sectors, 2304 B of ADPCM + 32 B trailer. Decodes to WAV. Channel count and sample rate still unconfirmed. |
+| `.vag` audio | **Solved** — standard 48-byte header, declares 11025/22050/44100 Hz |
+| Controllers | **Virtual panel working** — 4 handsets, lamps, behind `IBuzzInputSource` |
 | `.tex` textures | Not started — PS2 swizzled/palettised |
 | `.rp2` models | Not started — RenderWare PS2 streams |
 | `.pss` / `.ipu` video | Not started — MPEG-2 program stream / Sony IPU |
-| Buzz controllers | Not started — USB HID, Sony VID `0x054C` |
+| Real Buzz HID | Not started — USB HID, Sony VID `0x054C` |
 
 ## What the disc turned out to be
 
