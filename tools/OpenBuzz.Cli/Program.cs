@@ -65,6 +65,31 @@ try
             };
         }
 
+        case "a2d":
+
+        {
+
+            var sub2 = args.Length > 1 ? args[1].ToLowerInvariant() : "stats";
+
+            var inDir2 = Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts", "A2d");
+
+            return sub2 switch
+
+            {
+
+                "stats" => A2dCommands.Stats(inDir2),
+                        "export" => A2dCommands.Export(inDir2, Opt(args, "--out") ?? Path.Combine(defaultExtract, "a2d")),
+
+                "dump" => A2dCommands.Dump(inDir2, Opt(args, "--chunk") ?? "BZ_FE_PIP_STATES", Opt(args, "--out") ?? Path.Combine(repoRoot, "docs", "a2d-sample.txt")),
+
+                _ => Fail($"unknown a2d subcommand '{sub2}'"),
+
+            };
+
+        }
+
+        
+
         case "rkprobe":
             return RkProbe.Run(Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"));
 
@@ -158,4 +183,6 @@ static void Usage()
               Report the native API surface the scripts depend on.
         """);
 }
+
+
 
