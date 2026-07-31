@@ -1,5 +1,6 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
+using OpenBuzz.Animation;
 using OpenBuzz.Cli.Lua;
 
 namespace OpenBuzz.Cli;
@@ -97,7 +98,7 @@ public static class A2dCommands
         {
             var name = Path.GetFileNameWithoutExtension(path);
             var root = LuaUndump.Load(File.ReadAllBytes(path), Path.GetFileName(path));
-            var scene = A2dScene.Build(name, LuaDataExtractor.Extract(root));
+            var scene = A2dSceneBuilder.Build(name, LuaDataExtractor.Extract(root));
 
             File.WriteAllText(Path.Combine(outDir, name + ".json"), scene.ToJson());
 
@@ -130,7 +131,7 @@ public static class A2dCommands
         var calls = LuaDataExtractor.Extract(root);
 
         var sb = new StringBuilder();
-        sb.AppendLine($"; {Path.GetFileName(path)} — {calls.Count} calls");
+        sb.AppendLine($"; {Path.GetFileName(path)} â€” {calls.Count} calls");
         foreach (var call in calls) sb.AppendLine(call.ToString());
 
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
@@ -139,3 +140,4 @@ public static class A2dCommands
         return 0;
     }
 }
+
