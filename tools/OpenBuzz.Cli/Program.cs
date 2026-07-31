@@ -1,4 +1,4 @@
-using OpenBuzz.Cli;
+﻿using OpenBuzz.Cli;
 using OpenBuzz.Cli.Lua;
 
 if (args.Length == 0) { Usage(); return 1; }
@@ -45,6 +45,8 @@ try
                 "info" => TextureCommands.Info(inDir),
                 "decode" => TextureCommands.Decode(inDir, Opt(args, "--out") ?? Path.Combine(defaultExtract, "png")),
                 "atlas" => TextureCommands.Atlas(inDir),
+                "probe" => SwizzleProbe.Run(Opt(args, "--file") ?? Path.Combine(inDir, "BZ_Language_flags.tex")),
+                "strip" => SwizzleProbe.Strip(Opt(args, "--file") ?? Path.Combine(inDir, "BZ_Language_flags.tex"), int.Parse(Opt(args, "--y0") ?? "0"), int.Parse(Opt(args, "--y1") ?? "255")),
                 _ => Fail($"unknown tex subcommand '{sub}'"),
             };
         }
@@ -143,7 +145,7 @@ static string FindRepoRoot()
 static void Usage()
 {
     Console.WriteLine("""
-        obz — OpenBuzz asset tooling
+        obz â€” OpenBuzz asset tooling
 
           obz extract [--disc D:\] [--out DIR] [--all]
               Unpack the disc's .PAK archives. Skips FRA/GER/ITA locale packs
@@ -156,3 +158,4 @@ static void Usage()
               Report the native API surface the scripts depend on.
         """);
 }
+

@@ -1,5 +1,10 @@
 # Textures, atlases and fonts
 
+> **Status: pixel layout UNSOLVED.** Headers, dimensions, palettes and atlases
+> are all correct and verified. The index de-interleave is not: decoded images
+> come out visually scrambled. Everything below about swizzling is a description
+> of what was *tried*, not a working answer. `.uvs` and the palette work stand.
+
 ## `.tex` — RenderWare PS2 native textures
 
 42 files. Each is a RenderWare chunk stream that begins mid-tree, with no
@@ -27,14 +32,49 @@ immediately before it. Every file on the disc matches
 `width x height + palette + ~332 bytes of header` exactly, which is what makes
 that safe.
 
-### Two PS2 quirks
+### Palette — solved
 
-- **Swizzling.** Indices are stored in the GS block/column interleave, not row
-  order. `Ps2Swizzle` undoes PSMT8 and PSMT4.
 - **Palette order.** A 256-entry CLUT is in CSM1 layout: within every block of
   32 entries the second and third groups of 8 are swapped. 16-entry palettes are
   linear and need no fixing.
 - **Alpha range.** PS2 alpha runs 0..128, where 128 is opaque. Scale by 255/128.
+- **Channel order** in the file is R, G, B, A.
+
+Confirmed against `BZ_Language_flags`, whose CLUT holds `006300` green,
+`FE0001` red, `FCFFFF` white and `0808A7` blue contiguously at indices 64..71 —
+exactly the Italian and Dutch flag colours. Colours come out right; only their
+placement is wrong.
+
+### Index de-interleave — UNSOLVED
+
+Decoded images are scrambled. `obz tex probe` scores candidate layouts on two
+metrics, both computed from palette indices so they are independent of the CLUT:
+
+- *coherence* — fraction of neighbouring pixels sharing an index.
+- *flat rows* — fraction of rows that are >=80% one index. Flag artwork is solid
+  bands, so a correct decode must score high here. Nothing tried exceeds **6.6%**.
+
+Tried and rejected: linear (no de-interleave); the standard PSMT8 block/column
+unswizzle; its inverse; a 36-point sweep of the block width, block height, swap
+offset and column-scale terms; and treating the buffer as two image rows packed
+per buffer row, both as contiguous halves and byte-interleaved.
+
+Beware coherence alone: it reaches 85% on layouts that are plainly wrong,
+because scattered pixels still frequently match. The flat-row metric is what
+exposes them, and the two rank candidates in *opposite* orders.
+
+**The strongest open lead.** Read as a plain image of width 512, vertical
+coherence is 4.4% while horizontal is 71% — the row stride is wrong, not merely
+the scatter. Sweeping the stride puts a clear peak at **1024 bytes** (78.3%,
+against 74% at 1020 and 1028), i.e. twice the width, so a 512x256 texture
+occupies a 1024x128 buffer. The obvious readings of that pairing both fail the
+flat-row test, so the relationship is more involved.
+
+The next thing to try is the GS register block, which this code currently reads
+past and ignores: it sits at +16 into the raster struct and begins
+`00 80 30 99 05 00 00 20 1C ...`. `TEX0` encodes `TBW`, the texture buffer width
+in units of 64 texels, which would state the real stride outright instead of
+leaving it to be inferred. That is where to go next.
 
 Sizes range from 32x32 to 512x512. All are palettised; nothing on the disc is
 true colour.

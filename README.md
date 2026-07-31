@@ -28,7 +28,7 @@ Format work is done for the layers that matter most; nothing renders yet.
 | Controllers | **Virtual panel working** — 4 handsets, lamps, behind `IBuzzInputSource` |
 | Playable round | **Working** — `obz-round` plays a clip, takes buzzes, scores. Song→clip link unverified. |
 | Song table | `rri.dat` decoded — 1000 songs, release year + clip name, all clips present |
-| `.tex` textures | Not started — PS2 swizzled/palettised |
+| `.tex` textures | **Partial** — headers, sizes, palettes and `.uvs` atlases correct; pixel de-interleave unsolved, images decode scrambled. See [texture-format.md](docs/texture-format.md). |
 | `.rp2` models | Not started — RenderWare PS2 streams |
 | `.pss` / `.ipu` video | Not started — MPEG-2 program stream / Sony IPU |
 | Real Buzz HID | Not started — USB HID, Sony VID `0x054C` |
