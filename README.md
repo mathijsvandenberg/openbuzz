@@ -23,7 +23,7 @@ Format work is done for the layers that matter most; nothing renders yet.
 | Lua `.clu` bytecode | **Solved** — custom Lua 5.0 fully decoded, 149/149 chunks. See [lua-format.md](docs/lua-format.md). |
 | Native API surface | **Mapped** — 688 host functions. See [host-api.md](docs/host-api.md). |
 | Text / questions | Extracted; plain newline-separated Latin-1 in `.str`, `hash id` pairs in `.ndx` |
-| `.vgp` audio | **Structure solved** — 2336-byte sectors, 2304 B of ADPCM + 32 B trailer. Decodes to WAV. Channel count and sample rate still unconfirmed. |
+| `.vgp` audio | **Solved** — 2336-byte sectors; stereo music / mono speech auto-detected from the trailer, 44100 Hz. See [audio-format.md](docs/audio-format.md). |
 | `.vag` audio | **Solved** — standard 48-byte header, declares 11025/22050/44100 Hz |
 | Controllers | **Virtual panel working** — 4 handsets, lamps, behind `IBuzzInputSource` |
 | `.tex` textures | Not started — PS2 swizzled/palettised |

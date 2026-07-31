@@ -15,28 +15,32 @@ public static class AudioCommands
         int step = Math.Max(1, files.Length / limit);
         var sample = files.Where((_, i) => i % step == 0).Take(limit).ToArray();
 
-        int splitWins = 0, interWins = 0, misaligned = 0, badMarker = 0, confident = 0;
+        int ok = 0, misaligned = 0, badBlocks = 0;
+        var marks = new SortedDictionary<ushort, int>();
+        double seconds = 0;
 
-        Console.WriteLine($"{"file",-24} {"sectors",8} {"split",6} {"intlv",6} {"mono",6} {"of",4}  layout");
+        Console.WriteLine($"{"file",-24} {"sectors",8} {"blocks",8} {"bad",5} {"mark",6}  {"@44100",8}");
         foreach (var path in sample)
         {
             var p = VgpFile.Probe(File.ReadAllBytes(path));
+            if (p.StructureOk) ok++;
             if (p.TrailingBytes != 0) misaligned++;
-            if (!p.MarkerOk) badMarker++;
-            if (p.Confident) confident++;
-            if (p.SplitMatches >= p.InterleavedMatches) splitWins++; else interWins++;
+            badBlocks += p.BadPredictorBlocks;
+            marks[p.FirstTrailerMark] = marks.GetValueOrDefault(p.FirstTrailerMark) + 1;
+            seconds += p.SecondsAt(VgpFile.DefaultSampleRate);
 
             if (sample.Length <= 24)
-                Console.WriteLine($"{Path.GetFileName(path),-24} {p.Sectors,8} {p.SplitMatches,6} {p.InterleavedMatches,6} {p.MonoMatches,6} {p.Checked,4}  {p.Layout}");
+                Console.WriteLine($"{Path.GetFileName(path),-24} {p.Sectors,8} {p.TotalBlocks,8} " +
+                                  $"{p.BadPredictorBlocks,5} 0x{p.FirstTrailerMark:X4}  {p.SecondsAt(VgpFile.DefaultSampleRate),7:F2}s");
         }
 
         Console.WriteLine();
         Console.WriteLine($"sampled {sample.Length} of {files.Length} files");
-        Console.WriteLine($"  layout SplitHalves      : {splitWins}");
-        Console.WriteLine($"  layout BlockInterleaved : {interWins}");
-        Console.WriteLine($"  trailer state reproduced exactly on every sector : {confident}/{sample.Length}");
-        Console.WriteLine($"  not a whole number of 2336-byte sectors          : {misaligned}");
-        Console.WriteLine($"  trailer marker != 0x002C                         : {badMarker}");
+        Console.WriteLine($"  matching the sector model exactly : {ok}/{sample.Length}");
+        Console.WriteLine($"  not a whole number of 2336 bytes  : {misaligned}");
+        Console.WriteLine($"  blocks with an invalid predictor  : {badBlocks}");
+        Console.WriteLine($"  mean clip length at 44100 Hz      : {seconds / sample.Length:F2}s");
+        Console.WriteLine($"  distinct first-trailer markers    : {string.Join(", ", marks.Select(m => $"0x{m.Key:X4}x{m.Value}"))}");
         return 0;
     }
 
@@ -97,7 +101,7 @@ public static class AudioCommands
                         "split" => VgpLayout.SplitHalves,
                         "mono" => VgpLayout.Mono,
                         "interleaved" => VgpLayout.BlockInterleaved,
-                        _ => VgpFile.Probe(bytes).Layout,
+                        _ => VgpFile.LayoutFor(bytes),
                     };
                     var pcm = VgpFile.Decode(bytes, layout, out int ch);
                     WavWriter.Write(dest, pcm, ch, sampleRate);
@@ -112,4 +116,6 @@ public static class AudioCommands
         return 0;
     }
 }
+
+
 
