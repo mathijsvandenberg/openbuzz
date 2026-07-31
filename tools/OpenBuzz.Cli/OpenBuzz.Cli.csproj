@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\OpenBuzz.Audio\OpenBuzz.Audio.csproj" />
     <ProjectReference Include="..\..\src\OpenBuzz.Quiz\OpenBuzz.Quiz.csproj" />
+    <ProjectReference Include="..\..\src\OpenBuzz.Graphics\OpenBuzz.Graphics.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

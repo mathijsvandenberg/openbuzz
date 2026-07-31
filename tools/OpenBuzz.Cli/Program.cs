@@ -36,6 +36,19 @@ try
             return ApiScanner.Run(inDir, report, Opt(args, "--exclude"));
         }
 
+        case "tex":
+        {
+            var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "info";
+            var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "Textures");
+            return sub switch
+            {
+                "info" => TextureCommands.Info(inDir),
+                "decode" => TextureCommands.Decode(inDir, Opt(args, "--out") ?? Path.Combine(defaultExtract, "png")),
+                "atlas" => TextureCommands.Atlas(inDir),
+                _ => Fail($"unknown tex subcommand '{sub}'"),
+            };
+        }
+
         case "quiz":
         {
             var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "stats";
