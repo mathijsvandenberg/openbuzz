@@ -26,6 +26,8 @@ Format work is done for the layers that matter most; nothing renders yet.
 | `.vgp` audio | **Solved** — 2336-byte sectors; stereo music / mono speech auto-detected from the trailer, 44100 Hz. See [audio-format.md](docs/audio-format.md). |
 | `.vag` audio | **Solved** — standard 48-byte header, declares 11025/22050/44100 Hz |
 | Controllers | **Virtual panel working** — 4 handsets, lamps, behind `IBuzzInputSource` |
+| Playable round | **Working** — `obz-round` plays a clip, takes buzzes, scores. Song→clip link unverified. |
+| Song table | `rri.dat` decoded — 1000 songs, release year + clip name, all clips present |
 | `.tex` textures | Not started — PS2 swizzled/palettised |
 | `.rp2` models | Not started — RenderWare PS2 streams |
 | `.pss` / `.ipu` video | Not started — MPEG-2 program stream / Sony IPU |
@@ -65,11 +67,27 @@ format, emitting keyframes via `Col` / `Tfm` / `Bbx` / `Obj` / `Anm`
 Route 2 looks more attractive than it first did, because the native surface is
 mostly small, obviously-named, single-purpose calls.
 
-## Tooling
+## Playing a round
 
 ```bash
 dotnet build OpenBuzz.sln -c Release
+tools/OpenBuzz.Round/bin/Release/net9.0-windows/obz-round.exe
 ```
+
+Plays a song clip, arms the four buzzers, first buzz wins the right to answer,
+correct answers score. `1-4` buzz in, `QWER`/`ASDF`/`ZXCV`/`UIOP` pick a colour,
+`F5` restarts. Options are shuffled per question, mirroring what the engine does
+with `GetRandomisedIndex`.
+
+`--pool` selects a question pool (default `qtitle`), `--rate` the sample rate,
+`--locale` the language.
+
+**Caveat:** the round assumes a question's `SongId` indexes `rri.dat` directly.
+That is structurally sound — both are 0..999, and all 1000 clip names resolve to
+real files — but it is not verified. If the on-screen answers do not fit what
+you hear, that assumption is where to look.
+
+## Tooling
 
 The `obz` CLI lands in `tools/OpenBuzz.Cli/bin/Release/net9.0/`.
 

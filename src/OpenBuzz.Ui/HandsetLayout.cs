@@ -1,7 +1,7 @@
 using System.Drawing.Drawing2D;
 using OpenBuzz.Input;
 
-namespace OpenBuzz.VirtualControllers;
+namespace OpenBuzz.Ui;
 
 /// Geometry and colours for one drawn handset, and hit-testing against it.
 public sealed class HandsetLayout(Rectangle bounds)

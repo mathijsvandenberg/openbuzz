@@ -6,13 +6,15 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <RootNamespace>OpenBuzz.VirtualControllers</RootNamespace>
-    <AssemblyName>obz-controllers</AssemblyName>
+    <RootNamespace>OpenBuzz.Round</RootNamespace>
+    <AssemblyName>obz-round</AssemblyName>
     <ApplicationDefaultFont>Segoe UI, 9pt</ApplicationDefaultFont>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\OpenBuzz.Audio\OpenBuzz.Audio.csproj" />
     <ProjectReference Include="..\..\src\OpenBuzz.Input\OpenBuzz.Input.csproj" />
+    <ProjectReference Include="..\..\src\OpenBuzz.Quiz\OpenBuzz.Quiz.csproj" />
     <ProjectReference Include="..\..\src\OpenBuzz.Ui\OpenBuzz.Ui.csproj" />
   </ItemGroup>
 
