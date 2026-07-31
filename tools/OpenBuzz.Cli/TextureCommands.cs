@@ -13,7 +13,7 @@ public static class TextureCommands
         int ok = 0, failed = 0;
         long slack = 0;
 
-        Console.WriteLine($"{"file",-36} {"size",8} {"WxH",12} {"bpp",4} {"format",10} {"hdr",5}");
+        Console.WriteLine($"{"file",-36} {"size",8} {"WxH",12} {"bpp",4} {"psm",5} {"TW/TH",8} {"TBW",5} {"buf",6}");
         foreach (var path in files)
         {
             var bytes = File.ReadAllBytes(path);
@@ -26,7 +26,7 @@ public static class TextureCommands
                 slack += header;
                 ok++;
                 Console.WriteLine($"{Path.GetFileName(path),-36} {bytes.Length,8} " +
-                                  $"{$"{t.Width}x{t.Height}",12} {t.Depth,4} 0x{t.RasterFormat:X8} {header,5}");
+                                  $"{$"{t.Width}x{t.Height}",12} {t.Depth,4} 0x{t.Psm:X2} {$"{1 << t.Tw}x{1 << t.Th}",8} {t.Tbw,5} {t.BufferWidth,6}");
             }
             catch (Exception ex)
             {
@@ -104,4 +104,5 @@ public static class TextureCommands
         return 0;
     }
 }
+
 

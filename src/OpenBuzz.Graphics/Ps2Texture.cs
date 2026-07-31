@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+﻿using System.Buffers.Binary;
 
 namespace OpenBuzz.Graphics;
 
@@ -7,7 +7,7 @@ namespace OpenBuzz.Graphics;
 ///
 /// The chunk tree gives the name and dimensions. The pixel payload is wrapped
 /// in GS transfer packets, so rather than walking those, the indices and CLUT
-/// are taken from the end of the file — the palette is always the final
+/// are taken from the end of the file â€” the palette is always the final
 /// 1024 bytes (256 RGBA entries) with the indices immediately before it. Every
 /// file on the disc matches `width*height + palette + header` exactly, which is
 /// what makes that safe.
@@ -27,6 +27,23 @@ public sealed class Ps2Texture
     /// RGBA8888, alpha already expanded from the PS2's 0..128 range.
     public required uint[] Palette { get; init; }
 
+    /// Raw TEX0 register from the raster header.
+    public required ulong Tex0 { get; init; }
+
+    /// Texture buffer width in units of 64 texels â€” the GS's own statement of
+    /// the row stride the data is stored at.
+    public int Tbw => (int)((Tex0 >> 14) & 0x3F);
+
+    /// Buffer stride in texels.
+    public int BufferWidth => Tbw * 64;
+
+    /// GS pixel storage format: 0x13 = PSMT8, 0x14 = PSMT4.
+    public int Psm => (int)((Tex0 >> 20) & 0x3F);
+
+    /// Width and height as log2, per the register.
+    public int Tw => (int)((Tex0 >> 26) & 0x0F);
+    public int Th => (int)((Tex0 >> 30) & 0x0F);
+
     public static Ps2Texture Load(string path) => Parse(File.ReadAllBytes(path), Path.GetFileNameWithoutExtension(path));
 
     public static Ps2Texture Parse(byte[] data, string fallbackName)
@@ -34,6 +51,7 @@ public sealed class Ps2Texture
         string name = fallbackName, mask = "";
         int width = 0, height = 0, depth = 0;
         uint format = 0;
+        ulong tex0 = 0;
 
         // The files begin mid-tree: STRUCT("PS2"), STRING(name), STRING(mask),
         // STRUCT(raster info), then the pixel payload.
@@ -58,6 +76,10 @@ public sealed class Ps2Texture
                     height = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o + 4));
                     depth = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o + 8));
                     format = BinaryPrimitives.ReadUInt32LittleEndian(data.AsSpan(o + 12));
+                    // GS registers follow as (data, address) 64-bit pairs; the
+                    // first is TEX0, which states the real buffer stride.
+                    if (o + 24 <= data.Length)
+                        tex0 = BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(o + 16));
                     break;
                 }
             }
@@ -100,6 +122,7 @@ public sealed class Ps2Texture
             RasterFormat = format,
             Indices = indices,
             Palette = palette,
+            Tex0 = tex0,
         };
     }
 
@@ -115,3 +138,4 @@ public sealed class Ps2Texture
         return pixels;
     }
 }
+

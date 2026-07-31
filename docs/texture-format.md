@@ -63,18 +63,49 @@ Beware coherence alone: it reaches 85% on layouts that are plainly wrong,
 because scattered pixels still frequently match. The flat-row metric is what
 exposes them, and the two rank candidates in *opposite* orders.
 
-**The strongest open lead.** Read as a plain image of width 512, vertical
-coherence is 4.4% while horizontal is 71% — the row stride is wrong, not merely
-the scatter. Sweeping the stride puts a clear peak at **1024 bytes** (78.3%,
-against 74% at 1020 and 1028), i.e. twice the width, so a 512x256 texture
-occupies a 1024x128 buffer. The obvious readings of that pairing both fail the
-flat-row test, so the relationship is more involved.
+### What TEX0 settled
 
-The next thing to try is the GS register block, which this code currently reads
-past and ignores: it sits at +16 into the raster struct and begins
-`00 80 30 99 05 00 00 20 1C ...`. `TEX0` encodes `TBW`, the texture buffer width
-in units of 64 texels, which would state the real stride outright instead of
-leaving it to be inferred. That is where to go next.
+The GS register block is now parsed. It sits at **+16 into the raster struct**
+as 64-bit (data, address) pairs, the first being `TEX0`. The parse validates
+independently: `PSM` reads 0x13 (PSMT8) on every 8bpp file and 0x14 (PSMT4) on
+every 4bpp one, and `TW`/`TH` reproduce the struct's own width and height
+exactly, on all 42 textures. So the offset and bit layout are right.
+
+`TEX0` fields, per texture size:
+
+| Texture | TBW | Buffer width | vs texture width |
+|---|---:|---:|---|
+| 512x512, 512x256 | 8 | 512 | equal |
+| 256x256, 256x128, 256x64 | 4 | 256 | equal |
+| 128x128 | 2 | 128 | equal |
+| 64x64 | 2 | 128 | 2x (TBW floor) |
+| 32x32 @4bpp | 2 | 128 | 4x (TBW floor) |
+
+So for every texture large enough not to hit the `TBW` floor, **the stride is
+simply the texture width**. That contradicts the stride-sweep inference of 1024
+above, and the register is the authority.
+
+### Why the earlier negative results are void
+
+The flat-row metric that rejected every candidate was miscalibrated. The flags
+are 256px wide inside a 512px atlas, so two different flags share every row and
+**no row can reach 80% one index** — correct or not. That test could only ever
+fail, so "nothing exceeds 6.6%" proves nothing.
+
+`obz tex probe` now uses median longest run per row, which has no threshold.
+Under it `linear` ranks first at 384px — but linear's vertical coherence is
+4.4%, and a decode cannot have flat rows *and* rows unrelated to their
+neighbours. The two metrics rank candidates incompatibly, so neither is
+trustworthy yet and no candidate is confirmed.
+
+### Where this actually stands
+
+Established: chunk tree, dimensions, palette, `.uvs` atlases, and now the GS
+registers including a stride that equals the texture width. Not established:
+the index layout. The contradiction between the two metrics is the thing to
+resolve first — most likely by testing against a region whose correct content is
+known outright (a single flag's rect from `BZ_Language_flags.uvs`) rather than
+scoring the whole atlas, so the expected answer is exact rather than statistical.
 
 Sizes range from 32x32 to 512x512. All are palettised; nothing on the disc is
 true colour.

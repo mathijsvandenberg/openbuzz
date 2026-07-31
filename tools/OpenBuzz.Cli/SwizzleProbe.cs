@@ -81,22 +81,24 @@ public static class SwizzleProbe
                         results.Add((BandScore(idx, w, h), $"bw={bw,-2} bh={bh,-2} swap={swap} cs={colScale}", idx));
                     }
 
-        Console.WriteLine($"{"variant",-32} {"flat rows",10} {"coherence",10}");
+        Console.WriteLine($"{"variant",-32} {"med run",10} {"coherence",10}");
         foreach (var (score, name, idx) in results.OrderByDescending(r => r.Score).Take(10))
         {
             var (hz, vt) = Coherence(idx, w, h);
-            Console.WriteLine($"{name,-32} {score,10:P1} {(hz + vt) / 2,10:P1}");
+            Console.WriteLine($"{name,-32} {score,10:F0} {(hz + vt) / 2,10:P1}");
         }
 
         var best = results.MaxBy(r => r.Score);
         Console.WriteLine();
-        Console.WriteLine($"best: {best.Name} — {best.Score:P1} of rows are >=80% a single index");
+        Console.WriteLine($"best by median run: {best.Name} ({best.Score:F0}px)");
+        Console.WriteLine("Treat a winner as suspect unless coherence agrees: long runs with low");
+        Console.WriteLine("vertical coherence is self-contradictory and means the metric is lying.");
         return 0;
     }
 
     /// <summary>
     /// Unpacks a buffer whose rows are twice the image width, so each buffer
-    /// row carries two image rows — either as two contiguous halves or with the
+    /// row carries two image rows â€” either as two contiguous halves or with the
     /// two rows' bytes alternating.
     /// </summary>
     private static byte[] Pair(byte[] src, int w, int h, bool halves)
@@ -117,20 +119,34 @@ public static class SwizzleProbe
         return dst;
     }
 
-    /// Fraction of rows that are at least 80% a single palette index.
+    /// <summary>
+    /// Median of the longest run of identical indices in each row.
+    ///
+    /// An earlier version asked what fraction of rows were >=80% one index,
+    /// which was miscalibrated: the flags are 256px wide inside a 512px atlas,
+    /// so two different flags share every row and no row can reach 80%. That
+    /// made every candidate fail regardless of correctness. Longest-run has no
+    /// threshold to get wrong â€” solid bands produce long runs whatever else
+    /// shares the row.
+    /// </summary>
     private static double BandScore(byte[] idx, int w, int h)
     {
-        int flat = 0;
-        var counts = new int[256];
+        var longest = new int[h];
 
         for (int y = 0; y < h; y++)
         {
-            Array.Clear(counts);
-            for (int x = 0; x < w; x++) counts[idx[y * w + x]]++;
-            if (counts.Max() * 100 / w >= 80) flat++;
+            int best = 1, run = 1;
+            for (int x = 1; x < w; x++)
+            {
+                if (idx[y * w + x] == idx[y * w + x - 1]) run++;
+                else run = 1;
+                if (run > best) best = run;
+            }
+            longest[y] = best;
         }
 
-        return (double)flat / h;
+        Array.Sort(longest);
+        return longest[h / 2];
     }
 
     /// Fraction of neighbouring pixels sharing a palette index.
@@ -235,3 +251,4 @@ public static class SwizzleProbe
         return 0;
     }
 }
+
