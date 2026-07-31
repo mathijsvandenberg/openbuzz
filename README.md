@@ -88,6 +88,23 @@ That is structurally sound â€” both are 0..999, and all 1000 clip names res
 real files â€” but it is not verified. If the on-screen answers do not fit what
 you hear, that assumption is where to look.
 
+## Watching the animations
+
+```bash
+godot --path godot/OpenBuzzPlayer
+```
+
+Plays the 176 extracted A2D timelines as placeholder rectangles, so the
+choreography can be checked before any artwork exists. The design space is
+640x480 and Godot stretches it 4:3, so the window is already a 1080p render of
+the original layout.
+
+Arrow keys change animation and scene, space pauses, `,`/`.` step a frame, `Y`
+flips the vertical axis, `F` switches 25/50fps, `R` restarts.
+
+Requires `obz a2d export` to have been run; the player finds `extracted/a2d` by
+walking up from the project folder.
+
 ## Tooling
 
 The `obz` CLI lands in `tools/OpenBuzz.Cli/bin/Release/net9.0/`.
@@ -121,4 +138,5 @@ Re-derives the RK constant/register split from the corpus.
 - Prototype the Buzz controller HID layer (HidSharp) â€” independent of everything
   else, and cheap.
 - Decompile rather than disassemble the Lua, to firm up route 2.
+
 

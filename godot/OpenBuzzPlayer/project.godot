@@ -1,0 +1,28 @@
+; Engine configuration file.
+
+config_version=5
+
+[application]
+
+config/name="OpenBuzz A2D Player"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.4", "C#", "Forward Plus")
+
+[display]
+
+; The original design space. Godot scales this to the window, so every
+; coordinate in the A2D data is used unchanged and 1080p costs nothing.
+window/size/viewport_width=640
+window/size/viewport_height=480
+window/size/window_width_override=1440
+window/size/window_height_override=1080
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
+
+[dotnet]
+
+project/assembly_name="OpenBuzzPlayer"
+
+[rendering]
+
+renderer/rendering_method="mobile"

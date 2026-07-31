@@ -27,3 +27,11 @@ artifacts/
 *.user
 *.suo
 tools/thirdparty/
+
+## Published binaries
+dist/
+
+## Godot
+.godot/
+*.uid
+export_presets.cfg
