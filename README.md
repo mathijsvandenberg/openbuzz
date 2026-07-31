@@ -22,7 +22,7 @@ Format work is done for the layers that matter most; nothing renders yet.
 | `.PAK` archives | **Solved** — plain ZIP, stored. 4953 files extract in ~9s. |
 | Lua `.clu` bytecode | **Solved** — custom Lua 5.0 fully decoded, 149/149 chunks. See [lua-format.md](docs/lua-format.md). |
 | Native API surface | **Mapped** — 688 host functions. See [host-api.md](docs/host-api.md). |
-| Text / questions | Extracted; plain newline-separated Latin-1 in `.str`, `hash id` pairs in `.ndx` |
+| Text / questions | **Solved** — 8374 Dutch questions across 13 pools, all references validate. See [quiz-format.md](docs/quiz-format.md). |
 | `.vgp` audio | **Solved** — 2336-byte sectors; stereo music / mono speech auto-detected from the trailer, 44100 Hz. See [audio-format.md](docs/audio-format.md). |
 | `.vag` audio | **Solved** — standard 48-byte header, declares 11025/22050/44100 Hz |
 | Controllers | **Virtual panel working** — 4 handsets, lamps, behind `IBuzzInputSource` |

@@ -36,6 +36,20 @@ try
             return ApiScanner.Run(inDir, report, Opt(args, "--exclude"));
         }
 
+        case "quiz":
+        {
+            var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "stats";
+            var extracted = Opt(args, "--in") ?? defaultExtract;
+            var locale = Opt(args, "--locale") ?? "NET";
+            return sub switch
+            {
+                "stats" => QuizCommands.Stats(extracted, locale),
+                "dump" => QuizCommands.Dump(extracted, locale, Opt(args, "--pool") ?? "qall",
+                              Opt(args, "--out") ?? Path.Combine(extracted, $"questions-{locale}.txt")),
+                _ => Fail($"unknown quiz subcommand '{sub}'"),
+            };
+        }
+
         case "rkprobe":
             return RkProbe.Run(Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"));
 

@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenBuzz.Input", "src\OpenB
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenBuzz.VirtualControllers", "tools\OpenBuzz.VirtualControllers\OpenBuzz.VirtualControllers.csproj", "{C8E13BE9-D04B-4C5E-801C-FD05A34E8DB2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenBuzz.Quiz", "src\OpenBuzz.Quiz\OpenBuzz.Quiz.csproj", "{266354AC-90E1-421B-9D0C-422D94BA5C0F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,18 @@ Global
 		{C8E13BE9-D04B-4C5E-801C-FD05A34E8DB2}.Release|x64.Build.0 = Release|Any CPU
 		{C8E13BE9-D04B-4C5E-801C-FD05A34E8DB2}.Release|x86.ActiveCfg = Release|Any CPU
 		{C8E13BE9-D04B-4C5E-801C-FD05A34E8DB2}.Release|x86.Build.0 = Release|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Debug|x64.Build.0 = Debug|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Debug|x86.Build.0 = Debug|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Release|x64.ActiveCfg = Release|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Release|x64.Build.0 = Release|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Release|x86.ActiveCfg = Release|Any CPU
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -82,5 +96,6 @@ Global
 		{B8E7350A-EDAB-42A0-8774-CAC6463E6B89} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{C1911FAB-FFE4-4F07-8BF1-DF9F87ADEF2B} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{C8E13BE9-D04B-4C5E-801C-FD05A34E8DB2} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
+		{266354AC-90E1-421B-9D0C-422D94BA5C0F} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal
