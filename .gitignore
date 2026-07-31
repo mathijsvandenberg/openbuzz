@@ -1,0 +1,29 @@
+## Extracted game data — NEVER commit. Requires an original disc.
+extracted/
+assets/
+
+## Disassembly is derived game code, not our own work. Regenerate with `obz lua`.
+docs/disasm/
+*.PAK
+*.pak
+*.vgp
+*.vag
+*.pss
+*.PSS
+*.ipu
+*.rp2
+*.clu
+
+## Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+
+## Tooling
+.vs/
+.idea/
+*.user
+*.suo
+tools/thirdparty/
