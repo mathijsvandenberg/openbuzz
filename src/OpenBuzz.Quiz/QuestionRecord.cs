@@ -22,7 +22,7 @@ public readonly record struct QuestionRecord(
     /// The four options in stored order. Option0 is the correct answer: it is
     /// identical for every question shared between pools, the format has no
     /// correct-index field, and the engine exposes both GetRandomisedIndex and
-    /// GetCorrectAnswerIndex — so display order is shuffled at runtime and the
+    /// GetCorrectAnswerIndex - so display order is shuffled at runtime and the
     /// data does not need to record where the right one ended up.
     /// </summary>
     public ushort[] Options => [Option0, Option1, Option2, Option3];

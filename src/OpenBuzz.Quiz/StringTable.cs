@@ -4,7 +4,7 @@ namespace OpenBuzz.Quiz;
 
 /// <summary>
 /// A `.str` file: UTF-8 text, one string per line. References from the round
-/// data are **1-based**, with 0 meaning "no string" — getting this wrong shifts
+/// data are **1-based**, with 0 meaning "no string" - getting this wrong shifts
 /// every question onto its own first answer, which reads plausibly enough to
 /// hide the bug.
 /// </summary>

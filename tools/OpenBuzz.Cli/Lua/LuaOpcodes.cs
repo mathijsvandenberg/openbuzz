@@ -25,13 +25,13 @@ public enum OpMode { ABC, ABx, AsBx }
 public static class LuaOpcodes
 {
     // Lua 5.0 packs iABC as OP(0..5) C(6..14) B(15..23) A(24..31); Bx overlays C+B.
-    // (Lua 5.1 later reordered this to OP A C B — do not confuse the two.)
+    // (Lua 5.1 later reordered this to OP A C B - do not confuse the two.)
     public const int MaxArgSBx = (1 << 18) / 2 - 1;
 
     /// <summary>
     /// Threshold above which an RK operand denotes a constant rather than a register.
     /// Released Lua 5.0 uses BITRK (256); this build uses the older MAXSTACK-relative
-    /// encoding (250), confirmed by decoding the whole corpus both ways — see
+    /// encoding (250), confirmed by decoding the whole corpus both ways - see
     /// docs/lua-format.md.
     /// </summary>
     public static int RkThreshold { get; set; } = 250;

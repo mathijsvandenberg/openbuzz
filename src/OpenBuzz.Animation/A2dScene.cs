@@ -55,6 +55,22 @@ public sealed class A2dObject
     public bool IsLive(int frame) => Transform.Count > 0 && Transform[0].Frame <= frame;
 }
 
+/// <summary>
+/// Binds an object to a piece of text.
+///
+/// <paramref name="Key"/> is a named lookup into `default.str` via the hashes in
+/// `default.ndx`. That hash function is **not yet identified** - 29 standard
+/// candidates were tested against the 81 known keys and none produced a single
+/// hit - so the key cannot currently be resolved to its Dutch string. Everything
+/// else here (style, justification, size) is exact and usable now.
+/// </summary>
+public sealed record TextBinding(
+    string Key,
+    string Style,
+    string HorizontalJustify,
+    string VerticalJustify,
+    float SizeMultiplier);
+
 public sealed class A2dAnimation
 {
     public required string Name { get; init; }
@@ -67,7 +83,7 @@ public sealed class A2dAnimation
 ///
 /// Coordinates are the original 640x480 design space. Object <see cref="Bounds"/>
 /// are local and centred on the object's own origin, while a
-/// <see cref="TfmKey"/>'s X/Y is its position on that canvas — two different
+/// <see cref="TfmKey"/>'s X/Y is its position on that canvas - two different
 /// spaces that are easy to conflate.
 /// </summary>
 public sealed class A2dScene
@@ -81,6 +97,9 @@ public sealed class A2dScene
 
     /// Actor-to-sprite bindings declared alongside the timelines.
     public Dictionary<string, string> IconBindings { get; init; } = [];
+
+    /// Actor name -> text binding, from the SetActorToTextMapping* calls.
+    public Dictionary<string, TextBinding> TextBindings { get; init; } = [];
 
     private static readonly JsonSerializerOptions Options = new()
     {

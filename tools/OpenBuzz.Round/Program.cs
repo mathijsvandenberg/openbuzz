@@ -24,7 +24,7 @@ internal static class Program
             var songs = SongTable.Load(Path.Combine(extracted, "BM1", "Rounds", locale, "rri.dat"));
             var soundDir = Path.Combine(extracted, "Sound");
             if (!Directory.Exists(soundDir))
-                throw new DirectoryNotFoundException($"{soundDir} — run 'obz extract' first.");
+                throw new DirectoryNotFoundException($"{soundDir} - run 'obz extract' first.");
 
             Application.Run(new RoundForm(bank, songs, soundDir, rate, pool));
         }

@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 
 namespace OpenBuzz.Graphics;
 
@@ -7,7 +7,7 @@ namespace OpenBuzz.Graphics;
 ///
 /// The chunk tree gives the name and dimensions. The pixel payload is wrapped
 /// in GS transfer packets, so rather than walking those, the indices and CLUT
-/// are taken from the end of the file â€” the palette is always the final
+/// are taken from the end of the file - the palette is always the final
 /// 1024 bytes (256 RGBA entries) with the indices immediately before it. Every
 /// file on the disc matches `width*height + palette + header` exactly, which is
 /// what makes that safe.
@@ -30,7 +30,7 @@ public sealed class Ps2Texture
     /// Raw TEX0 register from the raster header.
     public required ulong Tex0 { get; init; }
 
-    /// Texture buffer width in units of 64 texels â€” the GS's own statement of
+    /// Texture buffer width in units of 64 texels - the GS's own statement of
     /// the row stride the data is stored at.
     public int Tbw => (int)((Tex0 >> 14) & 0x3F);
 

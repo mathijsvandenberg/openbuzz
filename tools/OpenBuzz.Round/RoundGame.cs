@@ -17,7 +17,7 @@ public readonly record struct PresentedOption(string Text, bool IsCorrect);
 
 /// <summary>
 /// A Points Builder style round: play a clip, first buzz wins the right to
-/// answer, correct answers score. Deliberately small — the point is to exercise
+/// answer, correct answers score. Deliberately small - the point is to exercise
 /// questions, audio, input and scoring together, not to reproduce the show.
 /// </summary>
 public sealed class RoundGame
@@ -119,7 +119,7 @@ public sealed class RoundGame
         QuestionNumber++;
         QuestionText = resolved.Question;
 
-        // Correct answer is stored first, so shuffle for display — the same
+        // Correct answer is stored first, so shuffle for display - the same
         // thing the engine does via GetRandomisedIndex.
         var options = resolved.Options
             .Select((text, i) => new PresentedOption(text, i == 0))
@@ -132,7 +132,7 @@ public sealed class RoundGame
 
         if (ClipPathFor(record) is { } clip) _player.Play(clip, _sampleRate);
 
-        Status = "Listen — hit your buzzer when you know it";
+        Status = "Listen - hit your buzzer when you know it";
         for (int i = 0; i < _input.ControllerCount; i++) _input.Lamp(i).Flash(TimeSpan.FromMilliseconds(320));
 
         SetPhase(RoundPhase.Listening);
@@ -149,7 +149,7 @@ public sealed class RoundGame
             else _input.Lamp(i).Off();
         }
 
-        Status = $"Player {player + 1} buzzed — pick a colour";
+        Status = $"Player {player + 1} buzzed - pick a colour";
         SetPhase(RoundPhase.Answering);
     }
 
@@ -182,7 +182,7 @@ public sealed class RoundGame
     private void Finish()
     {
         int best = Array.IndexOf(Scores, Scores.Max());
-        Status = $"Round over — Player {best + 1} wins with {Scores[best]}";
+        Status = $"Round over - Player {best + 1} wins with {Scores[best]}";
         _player.Stop();
         SetPhase(RoundPhase.Finished);
     }

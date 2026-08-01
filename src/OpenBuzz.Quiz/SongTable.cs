@@ -6,15 +6,15 @@ namespace OpenBuzz.Quiz;
 public readonly record struct SongEntry(int Index, int Year, int Unknown, string Clip);
 
 /// <summary>
-/// `rri.dat` — the song table. An 8-byte header (question count, song count)
+/// `rri.dat` - the song table. An 8-byte header (question count, song count)
 /// followed by one 12-byte record per song: uint16 release year, uint16 of
 /// unknown purpose, then a 6-character clip basename.
 ///
 /// All 1000 clip names resolve to real .vgp files on the disc, so the table
 /// itself is certain. What is **not** verified is that a question's SongId
 /// indexes this table directly. Both are 0..999 and the sizes line up exactly,
-/// but the one cross-check available — questions whose correct answer is a bare
-/// year — has a sample of 8 and matched twice, which settles nothing. Playing a
+/// but the one cross-check available - questions whose correct answer is a bare
+/// year - has a sample of 8 and matched twice, which settles nothing. Playing a
 /// round is the practical test: if the options fit the music, the link is right.
 /// </summary>
 public sealed class SongTable

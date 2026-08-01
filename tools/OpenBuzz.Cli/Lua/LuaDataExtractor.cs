@@ -30,7 +30,7 @@ public sealed record LuaCall(string Function, IReadOnlyList<object?> Args)
 ///
 /// This is not an interpreter. It follows constant loads and register moves and
 /// gives up on anything computed, marking those arguments unknown rather than
-/// guessing — a data file that needed real evaluation would show up as nulls
+/// guessing - a data file that needed real evaluation would show up as nulls
 /// instead of silently wrong numbers.
 /// </summary>
 public static class LuaDataExtractor

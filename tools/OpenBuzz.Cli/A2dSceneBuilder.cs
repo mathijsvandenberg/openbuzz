@@ -74,6 +74,30 @@ public static class A2dSceneBuilder
                             (float)(call.Number(4) ?? 0), (float)(call.Number(5) ?? 0));
                     break;
 
+                // Two variants: with and without justification arguments.
+
+                case "SetActorToTextMappingWithSizeMultiplier" when call.Args.Count >= 4:
+
+                    if (call.Text(0) is { } ta && call.Text(1) is { } tk)
+
+                        scene.TextBindings[ta] = new TextBinding(tk, call.Text(2) ?? "", "Left", "Centre",
+
+                                                                 (float)(call.Number(3) ?? 1));
+
+                    break;
+
+
+                case "SetActorToTextMappingWithJustificationAndSizeMultiplier" when call.Args.Count >= 6:
+
+                    if (call.Text(0) is { } ja && call.Text(1) is { } jk)
+
+                        scene.TextBindings[ja] = new TextBinding(jk, call.Text(2) ?? "", call.Text(3) ?? "Left",
+
+                                                                 call.Text(4) ?? "Centre", (float)(call.Number(5) ?? 1));
+
+                    break;
+
+
                 case "SetActorToIconMapping" when call.Args.Count >= 2:
                     if (call.Text(0) is { } actor && call.Text(1) is { } icon)
                         scene.IconBindings[actor] = icon;

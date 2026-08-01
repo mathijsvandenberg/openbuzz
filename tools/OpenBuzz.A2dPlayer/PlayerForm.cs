@@ -7,8 +7,8 @@ namespace OpenBuzz.A2dPlayer;
 /// <summary>
 /// Plays the extracted A2D timelines as placeholder rectangles.
 ///
-/// The point is to confirm the choreography â€” positions, easing, timing, bounds
-/// â€” before any artwork exists, so the layout can be verified independently of
+/// The point is to confirm the choreography - positions, easing, timing, bounds
+/// - before any artwork exists, so the layout can be verified independently of
 /// the unsolved texture decode. Coordinates are used exactly as exported and the
 /// 640x480 design space is scaled to the window, so this is already a
 /// full-resolution render of the original layout: nothing is resampled.
@@ -17,6 +17,13 @@ public sealed class PlayerForm : Form
 {
     private readonly List<A2dScene> _scenes;
     private readonly string _sourceDir;
+
+    /// <summary>
+    /// Text bindings are declared globally, not per scene: all 105 of them live
+    /// in the shared `Animation2dSetup` chunk and apply to actors wherever they
+    /// appear. Looking them up on the scene being played finds nothing.
+    /// </summary>
+    private readonly Dictionary<string, TextBinding> _textBindings = new(StringComparer.Ordinal);
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 8 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
 
@@ -30,7 +37,7 @@ public sealed class PlayerForm : Form
     /// a toggle rather than an assumption.
     private bool _flipY = true;
 
-    /// PAL, but 25 vs 50 is undetermined â€” also a toggle.
+    /// PAL, but 25 vs 50 is undetermined - also a toggle.
     private double _fps = 25;
 
     private A2dScene Scene => _scenes[_sceneIndex];
@@ -42,6 +49,10 @@ public sealed class PlayerForm : Form
     {
         _scenes = scenes;
         _sourceDir = sourceDir;
+
+        foreach (var s in scenes)
+            foreach (var (actor, binding) in s.TextBindings)
+                _textBindings[actor] = binding;
 
         Text = "OpenBuzz - A2D Player";
         BackColor = Color.FromArgb(16, 18, 24);
@@ -190,12 +201,57 @@ public sealed class PlayerForm : Form
         using (var dot = new SolidBrush(Color.FromArgb(a, tint)))
             g.FillEllipse(dot, origin.X - 1.6f, origin.Y - 1.6f, 3.2f, 3.2f);
 
+        // A text-bound object renders its string rather than its object name,
+        // laid out with the justification and relative size the scripts specify.
+        if (_textBindings.TryGetValue(obj.Name, out var binding))
+        {
+            DrawBoundText(g, binding, origin, box, t, a);
+            return;
+        }
+
         if (_showNames && box.Width * t.ScaleX >= 44 && box.Height * t.ScaleY >= 16)
         {
             using var font = new Font("Segoe UI", 6.5f);
             using var text = new SolidBrush(Color.FromArgb(Math.Min(255, a + 40), Color.White));
             g.DrawString(obj.Name, font, text, origin.X - box.Width / 2 + 3, origin.Y - 5);
         }
+    }
+
+    /// <summary>
+    /// Draws a text-bound object. The string shown is the lookup *key*, not the
+    /// Dutch text: resolving a key needs the `default.ndx` hash function, which
+    /// is not yet identified. Position, box, justification and relative size are
+    /// exact, so the layout is real even though the wording is a placeholder.
+    /// </summary>
+    private void DrawBoundText(Graphics g, TextBinding binding, PointF origin, Bounds box, TfmKey t, int alpha)
+    {
+        // The style names a base size the multiplier scales; the mapping from
+        // style to points is a guess, so this is approximate typography.
+        float basePoints = binding.Style.Contains("Large", StringComparison.OrdinalIgnoreCase) ? 9f : 6.5f;
+        float points = Math.Clamp(basePoints * Math.Min(binding.SizeMultiplier, 2.2f), 5f, 26f);
+
+        using var font = new Font("Segoe UI", points, FontStyle.Bold);
+        using var brush = new SolidBrush(Color.FromArgb(Math.Min(255, alpha + 30), 250, 250, 235));
+
+        var layout = new RectangleF(
+            origin.X + box.Left * t.ScaleX,
+            origin.Y - (box.Top * t.ScaleY),
+            box.Width * t.ScaleX,
+            box.Height * t.ScaleY);
+
+        using var format = new StringFormat
+        {
+            Alignment = binding.HorizontalJustify switch
+            {
+                "Centre" => StringAlignment.Center,
+                "Right" => StringAlignment.Far,
+                _ => StringAlignment.Near,
+            },
+            LineAlignment = binding.VerticalJustify == "Top" ? StringAlignment.Near : StringAlignment.Center,
+            Trimming = StringTrimming.EllipsisCharacter,
+        };
+
+        g.DrawString(binding.Key, font, brush, layout, format);
     }
 
     private void DrawHud(Graphics g, int height)

@@ -21,7 +21,7 @@ public readonly record struct UvRect(string Name, float U0, float V0, float U1, 
 /// A `.uvs` atlas index.
 ///
 /// Header: a name field holding a tag, then a version byte and an entry count.
-/// Each entry is a name field followed by four floats — u0, v0, u1, v1.
+/// Each entry is a name field followed by four floats - u0, v0, u1, v1.
 ///
 /// A name field is a length byte, then that many bytes of NUL-terminated text,
 /// then padding so the text occupies a multiple of four bytes. The padding is

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using OpenBuzz.Animation;
 using OpenBuzz.Cli.Lua;
@@ -131,7 +131,7 @@ public static class A2dCommands
         var calls = LuaDataExtractor.Extract(root);
 
         var sb = new StringBuilder();
-        sb.AppendLine($"; {Path.GetFileName(path)} â€” {calls.Count} calls");
+        sb.AppendLine($"; {Path.GetFileName(path)} - {calls.Count} calls");
         foreach (var call in calls) sb.AppendLine(call.ToString());
 
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);

@@ -66,7 +66,7 @@ public static class ApiScanner
         sb.AppendLine("straight-line calls and absent where the callee reached the call site indirectly.");
         sb.AppendLine();
 
-        // A global the scripts never assign must come from the host — that is the
+        // A global the scripts never assign must come from the host - that is the
         // set a port has to provide. Anything the corpus assigns is defined in Lua.
         var native = globals.Where(kv => kv.Value.Calls > 0 && kv.Value.Writes == 0).ToList();
         var scriptDefined = globals.Where(kv => kv.Value.Calls > 0 && kv.Value.Writes > 0).ToList();
@@ -76,11 +76,11 @@ public static class ApiScanner
         Console.WriteLine($"  native functions={native.Count}  script-defined={scriptDefined.Count}  " +
                           $"host constants={readOnlyData.Count}  script state={scriptState.Count}");
 
-        Section(sb, "Native functions — called but never assigned (the port must implement these)", native, showArity: true);
-        Section(sb, "Script-defined functions — called and assigned in Lua", scriptDefined, showArity: true);
-        Section(sb, "Host constants — read but never assigned", readOnlyData, showArity: false);
-        Section(sb, "Script globals — assigned in Lua (game state)", scriptState, showArity: false);
-        Section(sb, "Method names (OP_SELF — object model)", methods.ToList(), showArity: true);
+        Section(sb, "Native functions - called but never assigned (the port must implement these)", native, showArity: true);
+        Section(sb, "Script-defined functions - called and assigned in Lua", scriptDefined, showArity: true);
+        Section(sb, "Host constants - read but never assigned", readOnlyData, showArity: false);
+        Section(sb, "Script globals - assigned in Lua (game state)", scriptState, showArity: false);
+        Section(sb, "Method names (OP_SELF - object model)", methods.ToList(), showArity: true);
         Section(sb, "Table field names (OP_GETTABLE / OP_SETTABLE constant keys)", fields.ToList(), showArity: false);
 
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(reportPath))!);

@@ -1,4 +1,4 @@
-﻿using OpenBuzz.Cli;
+using OpenBuzz.Cli;
 using OpenBuzz.Cli.Lua;
 
 if (args.Length == 0) { Usage(); return 1; }
@@ -72,12 +72,15 @@ try
             var sub2 = args.Length > 1 ? args[1].ToLowerInvariant() : "stats";
 
             var inDir2 = Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts", "A2d");
+                    var locale2 = Opt(args, "--locale") ?? "NET";
 
             return sub2 switch
 
             {
 
                 "stats" => A2dCommands.Stats(inDir2),
+                        "text" => TextBindings.Show(inDir2),
+                        "crack" => TextBindings.Crack(inDir2, Path.Combine(defaultExtract, "BM1", "Text", locale2)),
                         "export" => A2dCommands.Export(inDir2, Opt(args, "--out") ?? Path.Combine(defaultExtract, "a2d")),
 
                 "dump" => A2dCommands.Dump(inDir2, Opt(args, "--chunk") ?? "BZ_FE_PIP_STATES", Opt(args, "--out") ?? Path.Combine(repoRoot, "docs", "a2d-sample.txt")),
@@ -170,7 +173,7 @@ static string FindRepoRoot()
 static void Usage()
 {
     Console.WriteLine("""
-        obz â€” OpenBuzz asset tooling
+        obz - OpenBuzz asset tooling
 
           obz extract [--disc D:\] [--out DIR] [--all]
               Unpack the disc's .PAK archives. Skips FRA/GER/ITA locale packs
@@ -183,6 +186,7 @@ static void Usage()
               Report the native API surface the scripts depend on.
         """);
 }
+
 
 
 

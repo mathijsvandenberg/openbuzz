@@ -98,7 +98,7 @@ public static class SwizzleProbe
 
     /// <summary>
     /// Unpacks a buffer whose rows are twice the image width, so each buffer
-    /// row carries two image rows â€” either as two contiguous halves or with the
+    /// row carries two image rows - either as two contiguous halves or with the
     /// two rows' bytes alternating.
     /// </summary>
     private static byte[] Pair(byte[] src, int w, int h, bool halves)
@@ -126,7 +126,7 @@ public static class SwizzleProbe
     /// which was miscalibrated: the flags are 256px wide inside a 512px atlas,
     /// so two different flags share every row and no row can reach 80%. That
     /// made every candidate fail regardless of correctness. Longest-run has no
-    /// threshold to get wrong â€” solid bands produce long runs whatever else
+    /// threshold to get wrong - solid bands produce long runs whatever else
     /// shares the row.
     /// </summary>
     private static double BandScore(byte[] idx, int w, int h)

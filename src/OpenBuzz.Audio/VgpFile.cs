@@ -32,7 +32,7 @@ public sealed record VgpProbe(
 
 /// <summary>
 /// A .vgp is a stream of 2336-byte sectors: 2304 bytes of Sony 4-bit ADPCM
-/// followed by a 32-byte trailer. There is no file header of any kind — no
+/// followed by a 32-byte trailer. There is no file header of any kind - no
 /// magic, no sample rate, no channel count.
 ///
 /// The audio is stereo, with the first 1152 bytes of each sector's payload
@@ -41,7 +41,7 @@ public sealed record VgpProbe(
 /// analysis: an earlier attempt read the trailer's leading eight bytes as four
 /// int16s of per-channel filter history, which would have made layout
 /// self-checking, but no layout reproduces those values, so the trailer is
-/// something else — most likely a seek record. It is skipped, not decoded.
+/// something else - most likely a seek record. It is skipped, not decoded.
 /// </summary>
 public static class VgpFile
 {
@@ -64,7 +64,7 @@ public static class VgpFile
     /// <summary>
     /// Bit in the trailer's last uint16 that appears to mean "single channel".
     /// Across the disc the marker is 0x002C on every SONGCLIP entry and 0x012C
-    /// on every NETSPEAK entry, and nothing else — music is stereo, speech mono.
+    /// on every NETSPEAK entry, and nothing else - music is stereo, speech mono.
     /// </summary>
     public const ushort MonoMarkerBit = 0x0100;
 

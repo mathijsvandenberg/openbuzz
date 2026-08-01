@@ -44,7 +44,7 @@ public sealed class VirtualBuzzInput : IBuzzInputSource
     /// <summary>
     /// Sets a button's state. Buffered until the next <see cref="Update"/> so
     /// that a press is observed for at least one full frame however briefly the
-    /// UI held it — a fast click must never be missed.
+    /// UI held it - a fast click must never be missed.
     /// </summary>
     public void SetButton(int controller, BuzzButton button, bool down)
     {

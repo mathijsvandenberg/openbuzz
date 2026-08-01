@@ -5,7 +5,7 @@ namespace OpenBuzz.Cli.Lua;
 /// <summary>
 /// Reader for Lua 5.0 precompiled chunks (lundump.c). The PS2 build uses
 /// little-endian, 4-byte int/size_t/Instruction and a 4-byte float lua_Number,
-/// which is unusual enough that generic Lua tooling often chokes on it — hence
+/// which is unusual enough that generic Lua tooling often chokes on it - hence
 /// this reader honours whatever the chunk header declares.
 /// </summary>
 public sealed class LuaUndump

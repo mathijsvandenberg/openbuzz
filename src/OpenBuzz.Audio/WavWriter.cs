@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 
 namespace OpenBuzz.Audio;
 
-/// Minimal 16-bit PCM RIFF writer — enough for anything downstream to consume.
+/// Minimal 16-bit PCM RIFF writer - enough for anything downstream to consume.
 public static class WavWriter
 {
     public static void Write(string path, short[] interleaved, int channels, int sampleRate)
