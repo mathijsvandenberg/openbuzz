@@ -81,6 +81,8 @@ try
                 "stats" => A2dCommands.Stats(inDir2),
                         "text" => TextBindings.Show(inDir2),
                         "crack" => TextBindings.Crack(inDir2, Path.Combine(defaultExtract, "BM1", "Text", locale2)),
+                        "sweep" => HashHunt.Sweep(inDir2, Path.Combine(defaultExtract, "BM1", "Text", locale2)),
+                        "elf" => HashHunt.ScanElf(Opt(args, "--elf") ?? "D:\\SCES_533.05"),
                         "export" => A2dCommands.Export(inDir2, Opt(args, "--out") ?? Path.Combine(defaultExtract, "a2d")),
 
                 "dump" => A2dCommands.Dump(inDir2, Opt(args, "--chunk") ?? "BZ_FE_PIP_STATES", Opt(args, "--out") ?? Path.Combine(repoRoot, "docs", "a2d-sample.txt")),
