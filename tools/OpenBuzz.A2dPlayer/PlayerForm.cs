@@ -24,6 +24,10 @@ public sealed class PlayerForm : Form
     /// appear. Looking them up on the scene being played finds nothing.
     /// </summary>
     private readonly Dictionary<string, TextBinding> _textBindings = new(StringComparer.Ordinal);
+
+    /// Resolves keys to real strings where the mapping is known; unmapped keys
+    /// fall back to showing the key itself rather than inventing text.
+    private readonly TextKeyMap _text = TextKeyMap.Discover(AppContext.BaseDirectory);
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 8 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
 
@@ -251,7 +255,9 @@ public sealed class PlayerForm : Form
             Trimming = StringTrimming.EllipsisCharacter,
         };
 
-        g.DrawString(binding.Key, font, brush, layout, format);
+        var resolved = _text.Resolve(binding.Key);
+        using var placeholder = new SolidBrush(Color.FromArgb(Math.Min(255, alpha), 150, 156, 170));
+        g.DrawString(resolved ?? binding.Key, font, resolved is null ? placeholder : brush, layout, format);
     }
 
     private void DrawHud(Graphics g, int height)
@@ -270,7 +276,7 @@ public sealed class PlayerForm : Form
 
         g.DrawString($"{anim.Name}   [{_animIndex + 1}/{Scene.Animations.Count}]    " +
                      $"frame {_frame}/{anim.FrameCount}    {anim.Objects.Count} objects    " +
-                     $"{_fps:0} fps    y-axis: {(_flipY ? "up" : "down")}",
+                     $"{_fps:0} fps    y-axis: {(_flipY ? "up" : "down")}    text: {_text.MappedKeys} keys mapped",
                      mid, new SolidBrush(Color.FromArgb(150, 190, 240)), 16, top + 34);
 
         g.DrawString("arrows: animation / scene    space: play-pause    , . step frame    " +
