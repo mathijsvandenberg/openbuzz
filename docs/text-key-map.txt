@@ -1,0 +1,122 @@
+# A2D text key -> default.str line id
+#
+# The engine resolves these keys through a 32-bit hash in default.ndx whose
+# function is not identified (29 named candidates, a 5.9M-combination sweep of
+# the multiply-accumulate family, and an ELF CRC-table scan all came back
+# empty). This table replaces it.
+#
+# It is valid for every locale: all four default.ndx files on the disc are
+# byte-identical, so a given id denotes the same key in NET, FRA, GER and ITA.
+# Only the strings behind the ids differ.
+#
+# Contains identifiers and integers only - no game text - so unlike the strings
+# themselves this file can live in the repository.
+#
+# Ids are 1-based line numbers in BM1/Text/<LANG>/default.str.
+#
+# VERIFIED entries were matched by meaning, not position: each round's block in
+# default.str is a short title followed by its prose lines, and the Dutch text
+# identifies the round unambiguously (id 37 "WIE HEEFT DE BOM" = who has the
+# bomb; id 51 "WAAR STOPT DE ZOEMER" = where does the buzzer stop; id 56
+# "AFSCHUIVEN" = passing off).
+
+[verified]
+RulesPointsBuilderTitle   = 22
+RulesPointsBuilderLine1   = 23
+RulesQuickfireTitle       = 24
+RulesQuickfireLine1       = 25
+RulesQuickfireLine2       = 26
+RulesFastestFingerTitle   = 28
+RulesFastestFingerLine1   = 29
+RulesFastestFingerLine2   = 30
+RulesSnapTitle            = 31
+RulesSnapLine1            = 32
+RulesSnapLine2            = 33
+RulesTriggerFingerTitle   = 34
+RulesTriggerFingerLine1   = 35
+RulesTriggerFingerLine2   = 36
+RulesPassTheBombTitle     = 37
+RulesPassTheBombLine1     = 38
+RulesPassTheBombLine2     = 39
+RulesTimeBuilderTitle     = 42
+RulesTimeBuilderLine1     = 43
+RulesTimeBuilderLine2     = 44
+RulesHotSeatTitle         = 46
+RulesHotSeatLine1         = 47
+RulesHotSeatLine2         = 48
+RulesBuzzStopTitle        = 51
+RulesBuzzStopLine1        = 52
+RulesBuzzStopLine2        = 53
+RulesOffLoaderTitle       = 56
+RulesOffLoaderLine1       = 57
+RulesOffLoaderLine2       = 58
+
+# Unresolved. Two groups, for different reasons.
+#
+# The scoring keys (Correct / CorrectPoints / Wrong / WrongPoints) are short
+# strings that are not in the ids 20..60 rules block, and a search of the short
+# lines elsewhere in default.str turned up only stats-screen labels
+# ("GOEDE ANTWOORDEN" at 337, "FOUTE ANTWOORDEN" at 338) rather than a per-round
+# set. Where they live is still unknown.
+#
+# Each rules block also has one or two trailing prose lines beyond Line2
+# (ids 27, 40, 41, 45, 49, 50, 54, 55, 59, 60). They plainly belong to their
+# round, but which key they carry is ambiguous and guessing risks putting
+# plausible text in the wrong slot - the failure mode that is hardest to notice
+# later. Left blank deliberately.
+#
+# QuickfireQuiz and QuizMaster have no title in the 20..60 block at all.
+
+[unresolved]
+RulesBuzzStopCorrect
+RulesBuzzStopCorrectPoints
+RulesBuzzStopWrong
+RulesBuzzStopWrongPoints
+RulesFastestFingerCorrect
+RulesFastestFingerCorrectPoints
+RulesFastestFingerWrong
+RulesFastestFingerWrongPoints
+RulesHotSeatCorrect
+RulesHotSeatCorrectPoints
+RulesHotSeatWrong
+RulesHotSeatWrongPoints
+RulesOffLoaderCorrect
+RulesOffLoaderCorrectPoints
+RulesOffLoaderWrong
+RulesOffLoaderWrongPoints
+RulesPassTheBombCorrect
+RulesPassTheBombWrong
+RulesPointsBuilderCorrect
+RulesPointsBuilderCorrectPoints
+RulesPointsBuilderWrong
+RulesPointsBuilderWrongPoints
+RulesQuickfireCorrect
+RulesQuickfireCorrectPoints
+RulesQuickfireWrong
+RulesQuickfireWrongPoints
+RulesQuickfireQuizTitle
+RulesQuickfireQuizLine1
+RulesQuickfireQuizLine2
+RulesQuickfireQuizCorrect
+RulesQuickfireQuizCorrectPoints
+RulesQuickfireQuizWrong
+RulesQuickfireQuizWrongPoints
+RulesQuizMasterTitle
+RulesQuizMasterLine1
+RulesQuizMasterLine2
+RulesQuizMasterCorrect
+RulesQuizMasterCorrectPoints
+RulesQuizMasterWrong
+RulesQuizMasterWrongPoints
+RulesSnapCorrect
+RulesSnapCorrectPoints
+RulesSnapWrong
+RulesSnapWrongPoints
+RulesTimeBuilderCorrect
+RulesTimeBuilderCorrectPoints
+RulesTimeBuilderWrong
+RulesTimeBuilderWrongPoints
+RulesTriggerFingerCorrect
+RulesTriggerFingerCorrectPoints
+RulesTriggerFingerWrong
+RulesTriggerFingerWrongPoints
