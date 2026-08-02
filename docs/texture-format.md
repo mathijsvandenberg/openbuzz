@@ -5,19 +5,19 @@
 > come out visually scrambled. Everything below about swizzling is a description
 > of what was *tried*, not a working answer. `.uvs` and the palette work stand.
 
-## `.tex` â€” RenderWare PS2 native textures
+## `.tex` Ã¢â‚¬â€ RenderWare PS2 native textures
 
 42 files. Each is a RenderWare chunk stream that begins mid-tree, with no
 enclosing texture dictionary: `STRUCT("PS2")`, `STRING(name)`,
 `STRING(maskName)`, then a struct whose payload opens with **another** chunk
-header â€” the raster info is one level down, at that nested chunk's data offset:
+header Ã¢â‚¬â€ the raster info is one level down, at that nested chunk's data offset:
 
 | Offset | Field |
 |---|---|
 | +0 | width (uint32) |
 | +4 | height (uint32) |
-| +8 | depth â€” 8 or 4 |
-| +12 | raster format â€” `0x00022504` for 8-bit, `0x00024504` for 4-bit |
+| +8 | depth Ã¢â‚¬â€ 8 or 4 |
+| +12 | raster format Ã¢â‚¬â€ `0x00022504` for 8-bit, `0x00024504` for 4-bit |
 
 Reading the outer struct directly yields `1 x height @ 0x1C020020`, because
 `0x1C020020` is the RenderWare library id sitting where the depth appears to be.
@@ -32,7 +32,7 @@ immediately before it. Every file on the disc matches
 `width x height + palette + ~332 bytes of header` exactly, which is what makes
 that safe.
 
-### Palette â€” solved
+### Palette Ã¢â‚¬â€ solved
 
 - **Palette order.** A 256-entry CLUT is in CSM1 layout: within every block of
   32 entries the second and third groups of 8 are swapped. 16-entry palettes are
@@ -41,17 +41,17 @@ that safe.
 - **Channel order** in the file is R, G, B, A.
 
 Confirmed against `BZ_Language_flags`, whose CLUT holds `006300` green,
-`FE0001` red, `FCFFFF` white and `0808A7` blue contiguously at indices 64..71 â€”
+`FE0001` red, `FCFFFF` white and `0808A7` blue contiguously at indices 64..71 Ã¢â‚¬â€
 exactly the Italian and Dutch flag colours. Colours come out right; only their
 placement is wrong.
 
-### Index de-interleave â€” UNSOLVED
+### Index de-interleave Ã¢â‚¬â€ UNSOLVED
 
 Decoded images are scrambled. `obz tex probe` scores candidate layouts on two
 metrics, both computed from palette indices so they are independent of the CLUT:
 
-- *coherence* â€” fraction of neighbouring pixels sharing an index.
-- *flat rows* â€” fraction of rows that are >=80% one index. Flag artwork is solid
+- *coherence* Ã¢â‚¬â€ fraction of neighbouring pixels sharing an index.
+- *flat rows* Ã¢â‚¬â€ fraction of rows that are >=80% one index. Flag artwork is solid
   bands, so a correct decode must score high here. Nothing tried exceeds **6.6%**.
 
 Tried and rejected: linear (no de-interleave); the standard PSMT8 block/column
@@ -89,11 +89,11 @@ above, and the register is the authority.
 
 The flat-row metric that rejected every candidate was miscalibrated. The flags
 are 256px wide inside a 512px atlas, so two different flags share every row and
-**no row can reach 80% one index** â€” correct or not. That test could only ever
+**no row can reach 80% one index** Ã¢â‚¬â€ correct or not. That test could only ever
 fail, so "nothing exceeds 6.6%" proves nothing.
 
 `obz tex probe` now uses median longest run per row, which has no threshold.
-Under it `linear` ranks first at 384px â€” but linear's vertical coherence is
+Under it `linear` ranks first at 384px Ã¢â‚¬â€ but linear's vertical coherence is
 4.4%, and a decode cannot have flat rows *and* rows unrelated to their
 neighbours. The two metrics rank candidates incompatibly, so neither is
 trustworthy yet and no candidate is confirmed.
@@ -103,21 +103,21 @@ trustworthy yet and no candidate is confirmed.
 Established: chunk tree, dimensions, palette, `.uvs` atlases, and now the GS
 registers including a stride that equals the texture width. Not established:
 the index layout. The contradiction between the two metrics is the thing to
-resolve first â€” most likely by testing against a region whose correct content is
+resolve first Ã¢â‚¬â€ most likely by testing against a region whose correct content is
 known outright (a single flag's rect from `BZ_Language_flags.uvs`) rather than
 scoring the whole atlas, so the expected answer is exact rather than statistical.
 
 Sizes range from 32x32 to 512x512. All are palettised; nothing on the disc is
 true colour.
 
-## `.uvs` â€” atlas indices
+## `.uvs` Ã¢â‚¬â€ atlas indices
 
 13 files, 151 sub-rectangles. Header is a name field holding the tag `1C04`,
 then a version byte (always 3) and an entry count. Each entry is a name field
 followed by four floats: `u0, v0, u1, v1`.
 
 A **name field** is a length byte, that many bytes of NUL-terminated text, then
-padding so the text occupies a multiple of four bytes â€” measured from the start
+padding so the text occupies a multiple of four bytes Ã¢â‚¬â€ measured from the start
 of the text, not the file offset, so the floats are often not 4-byte aligned
 within the file.
 
@@ -127,7 +127,7 @@ most files correctly and truncates the rest at the first such name, which is why
 the tool reports parsed-vs-declared counts rather than trusting either alone.
 
 Rects are normalised UVs; multiply by the texture size for pixels. Verified
-semantically â€” `hor_line` resolves to 46x2px, `vert_line` to 2x46px, and
+semantically Ã¢â‚¬â€ `hor_line` resolves to 46x2px, `vert_line` to 2x46px, and
 `1stPlace`..`4thPlace` to a row of 64px tiles.
 
 ## Fonts
@@ -149,7 +149,49 @@ Strip are display faces.
 
 None of them has a `.uvs`, so glyph rectangles come from elsewhere. The
 `characterMap.txt` / `NamedCharacterMap.txt` / `UnnamedCharacterMap.txt` files in
-each locale's text directory list the glyph repertoire in order â€” `characterMap`
-is UTF-16LE, the other two are plain text â€” which is enough to map a glyph index
+each locale's text directory list the glyph repertoire in order Ã¢â‚¬â€ `characterMap`
+is UTF-16LE, the other two are plain text Ã¢â‚¬â€ which is enough to map a glyph index
 to a character, but the per-glyph cell rectangles and advance widths have not
 been located yet. That is the open question for text rendering.
+
+## Texture swizzle: current state (end of investigation)
+
+The problem is now tightly bounded, and the bound is what matters.
+
+**Established.** The permutation is horizontal only. In a decoded flag the
+vertical placement is already correct - colour bands stay crisp, no red bleeds
+into white - and there is no diagonal skew, so the row stride is right and
+pixels never move between rows. Only x is shuffled, within a block.
+
+**Ruled out.**
+
+| Hypothesis | Best transitions/row | Verdict |
+|---|---:|---|
+| identity (no shuffle) | 231.4 | baseline |
+| bit permutation of x, k<=6 | 96.2 | improves, insufficient |
+| plus a row-dependent swap term | 99.7 | no help; amount=0 ties at top |
+| correct decode should reach | < 20 | |
+
+A bit permutation of x cannot explain the data, with or without a y term. So
+the mapping is **not a bit shuffle** - it is an arbitrary permutation within a
+block, or involves modular arithmetic.
+
+**The metric that works.** Colour transitions per row. Flags are solid bars, so
+a correct row has very few changes; the Danish flag is red, white, red, which is
+two. Two earlier metrics failed and both are worth not repeating: mean luminance
+step rewards interleaving (it chose a permutation that split the Spanish emblem
+into five fragments), and longest-run saturates because flat areas keep one run
+alive regardless (identity scored 105 against a best of 115).
+
+**The next step, and it does not need another guess.** Because the permutation
+is within-row and block-periodic, it can be *solved* rather than searched. Treat
+the N positions in a block as nodes and find the ordering that minimises total
+transitions across many rows - a seriation problem, solvable well with greedy
+nearest-neighbour plus 2-opt. N is 16 or 32, so this is small, and crucially it
+assumes nothing about the permutation's form, which is exactly where every
+search so far went wrong.
+
+Ground truth available for checking: the Danish flag is red with an off-centre
+white cross; the Spanish flag is red/yellow/red with an emblem at mid-left;
+`BZ_R_icons_02` holds gold, silver and bronze medals numbered 1-4;
+`BZ_FE_charselect_gradient` is a smooth vertical gradient.

@@ -6,13 +6,13 @@ namespace OpenBuzz.Cli;
 /// Searches for the horizontal pixel permutation.
 ///
 /// Observation that makes this tractable: in the decoded flags the vertical
-/// placement is already correct Ã¢â‚¬â€ colour bands do not bleed into each other Ã¢â‚¬â€
+/// placement is already correct ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â colour bands do not bleed into each other ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â
 /// and there is no diagonal skew, so the row stride is right and pixels never
 /// move between rows. Whatever is wrong is a shuffle of x within a row.
 ///
 /// PS2 address swizzles are bit manipulations, so the candidate space is a
 /// permutation of the low k bits of x, optionally XORed by a constant. That is
-/// k! * 2^k candidates Ã¢â‚¬â€ a few thousand Ã¢â‚¬â€ rather than the millions the earlier
+/// k! * 2^k candidates ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â a few thousand ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â rather than the millions the earlier
 /// formula sweep explored, and it can be scored exhaustively.
 ///
 /// Scoring uses palette luminance rather than the index, because index
@@ -43,28 +43,25 @@ public static class BitPermProbe
         }
 
         Console.WriteLine($"{Path.GetFileName(texPath)}  {w}x{h}@8bpp");
-        Console.WriteLine($"baseline (identity): {Score(raw, w, h, lum, Identity(w)):F1} transitions/row");
+        Console.WriteLine($"baseline (identity): {Score(raw, w, h, 4, [0, 1, 2, 3], 0, 0, 0, true):F1} transitions/row");
         Console.WriteLine();
 
-        var results = new List<(double Score, string Label, int[] Map)>();
+        var results = new List<(double Score, string Label)>();
 
-        for (int k = 2; k <= maxBits; k++)
-        {
-            int n = 1 << k;
+        for (int k = 4; k <= maxBits; k++)
             foreach (var perm in Permutations([.. Enumerable.Range(0, k)]))
-            {
-                for (int xor = 0; xor < n; xor++)
-                {
-                    var map = BuildMap(w, k, perm, xor);
-                    results.Add((Score(raw, w, h, lum, map),
-                                 $"k={k} bits[{string.Join(",", perm)}] xor=0x{xor:X}", map));
-                }
-            }
-        }
+                for (int xor = 0; xor < 2; xor++)
+                    foreach (int shift in new[] { 0, 1, 2, 3 })
+                        foreach (int amount in new[] { 0, 1, 2, 4, 8, 16 })
+                            foreach (bool add in new[] { true, false })
+                            {
+                                double s = Score(raw, w, h, k, perm, xor, shift, amount, add);
+                                results.Add((s, $"k={k} [{string.Join(",", perm)}] x{xor} y>>{shift}*{amount} {(add ? "+" : "^")}"));
+                            }
 
-        Console.WriteLine($"{"candidate",-34} {"mean |step|",12}");
-        foreach (var (score, label, map) in results.OrderBy(r => r.Score).Take(12))
-            Console.WriteLine($"{label,-34} {score,10:F1} {MeanStep(raw, w, h, lum, map),8:F2}");
+        Console.WriteLine($"{"candidate",-40} {"mean |step|",12}");
+        foreach (var (score, label) in results.OrderBy(r => r.Score).Take(12))
+            Console.WriteLine($"{label,-40} {score,12:F1}");
 
         var best = results.MinBy(r => r.Score);
         Console.WriteLine();
@@ -72,19 +69,31 @@ public static class BitPermProbe
         return 0;
     }
 
-    /// dst[x] reads src[map[x]].
-    private static int[] BuildMap(int w, int k, int[] perm, int xor)
+    /// <summary>
+    /// dst[y][x] reads src[y][map[x]]. The map depends on y through a swap
+    /// term, which is what the standard PSMT8 formula does with
+    /// ((y + 2) >> 2) & 1 - the horizontal shuffle alternates in bands of rows.
+    /// Searching only y-independent permutations plateaued at 96 transitions
+    /// per row against an expected sub-20, and the decoded output showed fine
+    /// horizontal striping, which is the visible signature of exactly this.
+    /// </summary>
+    private static int[] BuildMap(int w, int k, int[] perm, int xor, int y, int shift, int amount, bool add)
     {
         int mask = (1 << k) - 1;
+        int swap = ((y >> shift) & 1) * amount;
         var map = new int[w];
+
         for (int x = 0; x < w; x++)
         {
             int low = x & mask, shuffled = 0;
             for (int b = 0; b < k; b++)
                 if ((low & (1 << b)) != 0)
                     shuffled |= 1 << perm[b];
-            map[x] = (x & ~mask) | (shuffled ^ xor);
+
+            int combined = add ? (shuffled + swap) & mask : (shuffled ^ swap) & mask;
+            map[x] = (x & ~mask) | (combined ^ xor);
         }
+
         return map;
     }
 
@@ -104,12 +113,14 @@ public static class BitPermProbe
     /// one long run alive no matter how the rest is scrambled - identity already
     /// scored 105 of a best 115. Counting every boundary avoids both traps.
     /// </summary>
-    private static double Score(byte[] raw, int w, int h, double[] lum, int[] map)
+    private static double Score(byte[] raw, int w, int h, int k, int[] perm, int xor,
+                                int shift, int amount, bool add)
     {
         long transitions = 0, rows = 0;
 
         for (int y = 0; y < h; y += Math.Max(1, h / 96))
         {
+            var map = BuildMap(w, k, perm, xor, y, shift, amount, add);
             int row = y * w;
             for (int x = 1; x < w; x++)
                 if (raw[row + map[x]] != raw[row + map[x - 1]]) transitions++;
