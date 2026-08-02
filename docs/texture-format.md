@@ -5,19 +5,19 @@
 > come out visually scrambled. Everything below about swizzling is a description
 > of what was *tried*, not a working answer. `.uvs` and the palette work stand.
 
-## `.tex` — RenderWare PS2 native textures
+## `.tex` â€” RenderWare PS2 native textures
 
 42 files. Each is a RenderWare chunk stream that begins mid-tree, with no
 enclosing texture dictionary: `STRUCT("PS2")`, `STRING(name)`,
 `STRING(maskName)`, then a struct whose payload opens with **another** chunk
-header — the raster info is one level down, at that nested chunk's data offset:
+header â€” the raster info is one level down, at that nested chunk's data offset:
 
 | Offset | Field |
 |---|---|
 | +0 | width (uint32) |
 | +4 | height (uint32) |
-| +8 | depth — 8 or 4 |
-| +12 | raster format — `0x00022504` for 8-bit, `0x00024504` for 4-bit |
+| +8 | depth â€” 8 or 4 |
+| +12 | raster format â€” `0x00022504` for 8-bit, `0x00024504` for 4-bit |
 
 Reading the outer struct directly yields `1 x height @ 0x1C020020`, because
 `0x1C020020` is the RenderWare library id sitting where the depth appears to be.
@@ -32,7 +32,7 @@ immediately before it. Every file on the disc matches
 `width x height + palette + ~332 bytes of header` exactly, which is what makes
 that safe.
 
-### Palette — solved
+### Palette â€” solved
 
 - **Palette order.** A 256-entry CLUT is in CSM1 layout: within every block of
   32 entries the second and third groups of 8 are swapped. 16-entry palettes are
@@ -41,17 +41,17 @@ that safe.
 - **Channel order** in the file is R, G, B, A.
 
 Confirmed against `BZ_Language_flags`, whose CLUT holds `006300` green,
-`FE0001` red, `FCFFFF` white and `0808A7` blue contiguously at indices 64..71 —
+`FE0001` red, `FCFFFF` white and `0808A7` blue contiguously at indices 64..71 â€”
 exactly the Italian and Dutch flag colours. Colours come out right; only their
 placement is wrong.
 
-### Index de-interleave — UNSOLVED
+### Index de-interleave â€” UNSOLVED
 
 Decoded images are scrambled. `obz tex probe` scores candidate layouts on two
 metrics, both computed from palette indices so they are independent of the CLUT:
 
-- *coherence* — fraction of neighbouring pixels sharing an index.
-- *flat rows* — fraction of rows that are >=80% one index. Flag artwork is solid
+- *coherence* â€” fraction of neighbouring pixels sharing an index.
+- *flat rows* â€” fraction of rows that are >=80% one index. Flag artwork is solid
   bands, so a correct decode must score high here. Nothing tried exceeds **6.6%**.
 
 Tried and rejected: linear (no de-interleave); the standard PSMT8 block/column
@@ -89,11 +89,11 @@ above, and the register is the authority.
 
 The flat-row metric that rejected every candidate was miscalibrated. The flags
 are 256px wide inside a 512px atlas, so two different flags share every row and
-**no row can reach 80% one index** — correct or not. That test could only ever
+**no row can reach 80% one index** â€” correct or not. That test could only ever
 fail, so "nothing exceeds 6.6%" proves nothing.
 
 `obz tex probe` now uses median longest run per row, which has no threshold.
-Under it `linear` ranks first at 384px — but linear's vertical coherence is
+Under it `linear` ranks first at 384px â€” but linear's vertical coherence is
 4.4%, and a decode cannot have flat rows *and* rows unrelated to their
 neighbours. The two metrics rank candidates incompatibly, so neither is
 trustworthy yet and no candidate is confirmed.
@@ -103,21 +103,21 @@ trustworthy yet and no candidate is confirmed.
 Established: chunk tree, dimensions, palette, `.uvs` atlases, and now the GS
 registers including a stride that equals the texture width. Not established:
 the index layout. The contradiction between the two metrics is the thing to
-resolve first — most likely by testing against a region whose correct content is
+resolve first â€” most likely by testing against a region whose correct content is
 known outright (a single flag's rect from `BZ_Language_flags.uvs`) rather than
 scoring the whole atlas, so the expected answer is exact rather than statistical.
 
 Sizes range from 32x32 to 512x512. All are palettised; nothing on the disc is
 true colour.
 
-## `.uvs` — atlas indices
+## `.uvs` â€” atlas indices
 
 13 files, 151 sub-rectangles. Header is a name field holding the tag `1C04`,
 then a version byte (always 3) and an entry count. Each entry is a name field
 followed by four floats: `u0, v0, u1, v1`.
 
 A **name field** is a length byte, that many bytes of NUL-terminated text, then
-padding so the text occupies a multiple of four bytes — measured from the start
+padding so the text occupies a multiple of four bytes â€” measured from the start
 of the text, not the file offset, so the floats are often not 4-byte aligned
 within the file.
 
@@ -127,7 +127,7 @@ most files correctly and truncates the rest at the first such name, which is why
 the tool reports parsed-vs-declared counts rather than trusting either alone.
 
 Rects are normalised UVs; multiply by the texture size for pixels. Verified
-semantically — `hor_line` resolves to 46x2px, `vert_line` to 2x46px, and
+semantically â€” `hor_line` resolves to 46x2px, `vert_line` to 2x46px, and
 `1stPlace`..`4thPlace` to a row of 64px tiles.
 
 ## Fonts
@@ -149,7 +149,7 @@ Strip are display faces.
 
 None of them has a `.uvs`, so glyph rectangles come from elsewhere. The
 `characterMap.txt` / `NamedCharacterMap.txt` / `UnnamedCharacterMap.txt` files in
-each locale's text directory list the glyph repertoire in order — `characterMap`
-is UTF-16LE, the other two are plain text — which is enough to map a glyph index
+each locale's text directory list the glyph repertoire in order â€” `characterMap`
+is UTF-16LE, the other two are plain text â€” which is enough to map a glyph index
 to a character, but the per-glyph cell rectangles and advance widths have not
 been located yet. That is the open question for text rendering.
