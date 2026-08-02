@@ -12,8 +12,8 @@ public sealed record Sprite(Bitmap Texture, Rectangle Source, string Atlas);
 ///
 /// The pixels are currently wrong: the PS2 index de-interleave is unsolved, so
 /// every texture decodes scrambled (see docs/texture-format.md). Everything
-/// around them is right — the atlas rectangles, the sizes, and which sprite
-/// belongs to which object — so this draws real artwork in the correct place at
+/// around them is right â€” the atlas rectangles, the sizes, and which sprite
+/// belongs to which object â€” so this draws real artwork in the correct place at
 /// the correct size the moment the swizzle is fixed, and until then it serves as
 /// a far better test of a candidate decode than scoring a whole atlas: a named
 /// sprite at a known size in a known position either looks like itself or does
@@ -25,6 +25,10 @@ public sealed class SpriteLibrary : IDisposable
     private readonly List<Bitmap> _textures = [];
 
     public int SpriteCount => _sprites.Count;
+
+    /// Why loading produced what it did - swallowing texture failures silently
+    /// made an empty library indistinguishable from a missing directory.
+    public List<string> Diagnostics { get; } = [];
     public int AtlasCount => _textures.Count;
 
     public Sprite? Find(string name) => _sprites.GetValueOrDefault(name);
@@ -36,6 +40,8 @@ public sealed class SpriteLibrary : IDisposable
         for (var d = new DirectoryInfo(startDirectory); d is not null; d = d.Parent)
         {
             var dir = Path.Combine(d.FullName, "extracted", "Textures");
+
+            library.Diagnostics.Add($"probe: {dir} exists={Directory.Exists(dir)}");
             if (!Directory.Exists(dir)) continue;
             library.LoadFrom(dir);
             break;
@@ -58,9 +64,10 @@ public sealed class SpriteLibrary : IDisposable
                 tex = Ps2Texture.Load(texPath);
                 bitmap = ToBitmap(tex);
             }
-            catch
+            catch (Exception ex)
             {
-                continue;   // a texture we cannot parse simply has no sprites
+                Diagnostics.Add($"FAIL {Path.GetFileName(texPath)}: {ex.GetType().Name}: {ex.Message}");
+                continue;
             }
 
             _textures.Add(bitmap);

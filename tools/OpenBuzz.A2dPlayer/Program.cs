@@ -26,7 +26,9 @@ internal static class Program
             return;
         }
 
-        Application.Run(new PlayerForm(scenes, dir));
+        var form = new PlayerForm(scenes, dir);
+        form.WriteDiagnostics(Path.Combine(AppContext.BaseDirectory, "obz-a2d-diag.txt"));
+        Application.Run(form);
     }
 
     private static string? Opt(string[] args, string name)

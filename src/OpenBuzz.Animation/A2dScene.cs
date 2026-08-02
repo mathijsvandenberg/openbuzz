@@ -113,8 +113,12 @@ public sealed class A2dScene
     public static A2dScene? FromJson(string json) => JsonSerializer.Deserialize<A2dScene>(json, Options);
 
     /// <summary>
-    /// Loads every exported scene in a directory, skipping any that fail to
-    /// parse rather than aborting the whole load.
+    /// Loads every exported scene in a directory, skipping only files that fail
+    /// to parse.
+    ///
+    /// Do not filter out scenes with no animations. Animation2dSetup has none -
+    /// it is pure declaration - yet it carries every text and icon binding on
+    /// the disc, so dropping it silently strips all of them.
     /// </summary>
     public static List<A2dScene> LoadAll(string directory)
     {
@@ -124,7 +128,7 @@ public sealed class A2dScene
         {
             try
             {
-                if (FromJson(File.ReadAllText(path)) is { Animations.Count: > 0 } scene)
+                if (FromJson(File.ReadAllText(path)) is { } scene)
                     scenes.Add(scene);
             }
             catch (JsonException)

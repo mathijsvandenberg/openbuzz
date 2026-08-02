@@ -60,8 +60,11 @@ public sealed class PlayerForm : Form
 
     public PlayerForm(List<A2dScene> scenes, string sourceDir)
     {
-        _scenes = scenes;
+        // Bindings come from every loaded scene, including declaration-only ones;
+
+        // navigation only visits scenes that actually have timelines.
         _sourceDir = sourceDir;
+        _scenes = [.. scenes.Where(s => s.Animations.Count > 0)];
 
         foreach (var s in scenes)
             foreach (var (actor, binding) in s.TextBindings)
@@ -90,6 +93,52 @@ public sealed class PlayerForm : Form
         };
         _timer.Start();
     }
+
+    /// Dumps what the sprite library found, for diagnosing an empty render.
+
+
+    public void WriteDiagnostics(string path)
+
+
+    {
+
+
+        var lines = new List<string>
+
+
+        {
+
+
+            $"baseDir      : {AppContext.BaseDirectory}",
+
+
+            $"scenes       : {_scenes.Count}",
+
+
+            $"textBindings : {_textBindings.Count}",
+
+
+            $"iconBindings : {_iconBindings.Count}",
+
+
+            $"textKeys     : {_text.MappedKeys}",
+
+
+            $"sprites      : {_sprites.SpriteCount} in {_sprites.AtlasCount} atlases",
+
+
+        };
+
+
+        lines.AddRange(_sprites.Diagnostics);
+
+
+        try { File.WriteAllLines(path, lines); } catch { }
+
+
+    }
+
+
 
     // ---- input -----------------------------------------------------------
 
