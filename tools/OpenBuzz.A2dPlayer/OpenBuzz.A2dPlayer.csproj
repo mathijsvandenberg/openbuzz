@@ -13,6 +13,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\OpenBuzz.Animation\OpenBuzz.Animation.csproj" />
+    <ProjectReference Include="..\..\src\OpenBuzz.Graphics\OpenBuzz.Graphics.csproj" />
   </ItemGroup>
 
 </Project>

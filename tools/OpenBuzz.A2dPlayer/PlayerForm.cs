@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
 using OpenBuzz.Animation;
 
 namespace OpenBuzz.A2dPlayer;
@@ -28,6 +29,14 @@ public sealed class PlayerForm : Form
     /// Resolves keys to real strings where the mapping is known; unmapped keys
     /// fall back to showing the key itself rather than inventing text.
     private readonly TextKeyMap _text = TextKeyMap.Discover(AppContext.BaseDirectory);
+
+    /// Icon bindings are global too, same as text bindings.
+    private readonly Dictionary<string, string> _iconBindings = new(StringComparer.Ordinal);
+    private readonly SpriteLibrary _sprites = SpriteLibrary.Discover(AppContext.BaseDirectory);
+
+    /// Textures decode scrambled until the swizzle is solved, so drawing them
+    /// is opt-out rather than forced.
+    private bool _showSprites = true;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 8 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
 
@@ -57,6 +66,10 @@ public sealed class PlayerForm : Form
         foreach (var s in scenes)
             foreach (var (actor, binding) in s.TextBindings)
                 _textBindings[actor] = binding;
+
+        foreach (var s in scenes)
+            foreach (var (actor, icon) in s.IconBindings)
+                _iconBindings[actor] = icon;
 
         Text = "OpenBuzz - A2D Player";
         BackColor = Color.FromArgb(16, 18, 24);
@@ -93,6 +106,7 @@ public sealed class PlayerForm : Form
             case Keys.Y: _flipY = !_flipY; break;
             case Keys.F: _fps = _fps == 25 ? 50 : 25; Restart(); break;
             case Keys.N: _showNames = !_showNames; break;
+            case Keys.T: _showSprites = !_showSprites; break;
             case Keys.OemPeriod: _playing = false; _frame = Math.Min(_frame + 1, Animation.FrameCount); break;
             case Keys.Oemcomma: _playing = false; _frame = Math.Max(0, _frame - 1); break;
             case Keys.Escape: Close(); break;
@@ -157,7 +171,7 @@ public sealed class PlayerForm : Form
         DrawHud(g, hud);
     }
 
-    private static void DrawCanvas(Graphics g)
+    private static void DrawCanvas(System.Drawing.Graphics g)
     {
         using var bg = new SolidBrush(Color.FromArgb(24, 27, 34));
         g.FillRectangle(bg, 0, 0, A2dScene.CanvasWidth, A2dScene.CanvasHeight);
@@ -173,7 +187,7 @@ public sealed class PlayerForm : Form
         g.DrawLine(axis, 0, A2dScene.CanvasHeight / 2, A2dScene.CanvasWidth, A2dScene.CanvasHeight / 2);
     }
 
-    private void DrawObject(Graphics g, A2dObject obj, float scale)
+    private void DrawObject(System.Drawing.Graphics g, A2dObject obj, float scale)
     {
         if (!obj.IsLive(_frame)) return;
         if (obj.TransformAt(_frame) is not { } t) return;
@@ -213,6 +227,52 @@ public sealed class PlayerForm : Form
             return;
         }
 
+        if (_showSprites && _iconBindings.TryGetValue(obj.Name, out var iconName)
+
+
+            && _sprites.Find(iconName) is { } sprite)
+
+
+        {
+
+
+            var dest = new RectangleF(origin.X + box.Left * t.ScaleX,
+
+
+                                      origin.Y - box.Top * t.ScaleY,
+
+
+                                      box.Width * t.ScaleX, box.Height * t.ScaleY);
+
+
+            var attr = new ImageAttributes();
+
+
+            var m = new ColorMatrix { Matrix33 = alpha };
+
+
+            attr.SetColorMatrix(m);
+
+
+            g.DrawImage(sprite.Texture, Rectangle.Round(dest),
+
+
+                        sprite.Source.X, sprite.Source.Y, sprite.Source.Width, sprite.Source.Height,
+
+
+                        GraphicsUnit.Pixel, attr);
+
+
+            attr.Dispose();
+
+
+            return;
+
+
+        }
+
+
+
         if (_showNames && box.Width * t.ScaleX >= 44 && box.Height * t.ScaleY >= 16)
         {
             using var font = new Font("Segoe UI", 6.5f);
@@ -227,7 +287,7 @@ public sealed class PlayerForm : Form
     /// is not yet identified. Position, box, justification and relative size are
     /// exact, so the layout is real even though the wording is a placeholder.
     /// </summary>
-    private void DrawBoundText(Graphics g, TextBinding binding, PointF origin, Bounds box, TfmKey t, int alpha)
+    private void DrawBoundText(System.Drawing.Graphics g, TextBinding binding, PointF origin, Bounds box, TfmKey t, int alpha)
     {
         // The style names a base size the multiplier scales; the mapping from
         // style to points is a guess, so this is approximate typography.
@@ -260,7 +320,7 @@ public sealed class PlayerForm : Form
         g.DrawString(resolved ?? binding.Key, font, resolved is null ? placeholder : brush, layout, format);
     }
 
-    private void DrawHud(Graphics g, int height)
+    private void DrawHud(System.Drawing.Graphics g, int height)
     {
         int top = ClientSize.Height - height;
         using var panel = new SolidBrush(Color.FromArgb(10, 12, 16));
@@ -276,11 +336,11 @@ public sealed class PlayerForm : Form
 
         g.DrawString($"{anim.Name}   [{_animIndex + 1}/{Scene.Animations.Count}]    " +
                      $"frame {_frame}/{anim.FrameCount}    {anim.Objects.Count} objects    " +
-                     $"{_fps:0} fps    y-axis: {(_flipY ? "up" : "down")}    text: {_text.MappedKeys} keys mapped",
+                     $"{_fps:0} fps    y-axis: {(_flipY ? "up" : "down")}    text: {_text.MappedKeys} keys    sprites: {_sprites.SpriteCount} in {_sprites.AtlasCount} atlases",
                      mid, new SolidBrush(Color.FromArgb(150, 190, 240)), 16, top + 34);
 
         g.DrawString("arrows: animation / scene    space: play-pause    , . step frame    " +
-                     "R restart    Y flip axis    F fps    N names    Esc quit",
+                     "R restart    Y flip axis    F fps    N names    T sprites    Esc quit",
                      small, new SolidBrush(Color.FromArgb(120, 124, 134)), 16, top + 58);
 
         // Progress bar for the current clip.
