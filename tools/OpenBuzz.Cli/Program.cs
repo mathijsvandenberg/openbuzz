@@ -45,6 +45,7 @@ try
                 "info" => TextureCommands.Info(inDir),
                 "decode" => TextureCommands.Decode(inDir, Opt(args, "--out") ?? Path.Combine(defaultExtract, "png")),
                 "atlas" => TextureCommands.Atlas(inDir),
+                "bitperm" => BitPermProbe.Run(Opt(args, "--file") ?? Path.Combine(inDir, "BZ_Language_flags.tex"), int.Parse(Opt(args, "--bits") ?? "5")),
                 "probe" => SwizzleProbe.Run(Opt(args, "--file") ?? Path.Combine(inDir, "BZ_Language_flags.tex")),
                 "strip" => SwizzleProbe.Strip(Opt(args, "--file") ?? Path.Combine(inDir, "BZ_Language_flags.tex"), int.Parse(Opt(args, "--y0") ?? "0"), int.Parse(Opt(args, "--y1") ?? "255")),
                 _ => Fail($"unknown tex subcommand '{sub}'"),
