@@ -5,6 +5,8 @@ namespace OpenBuzz.Round;
 
 public enum RoundPhase
 {
+    /// The round's A2D bumper plays before the first question.
+    Bumper,
     Idle,        // waiting to start the next question
     Listening,   // clip playing, all buzzers armed
     Answering,   // someone buzzed in; they must pick a colour
@@ -27,6 +29,10 @@ public sealed class RoundGame
 
     private static readonly TimeSpan AnswerLimit = TimeSpan.FromSeconds(8);
     private static readonly TimeSpan RevealTime = TimeSpan.FromSeconds(3.5);
+
+    /// The bumper animations are authored at 25fps and run 240 frames.
+    public const double BumperFps = 25;
+    public const int BumperFrames = 240;
 
     private readonly QuizBank _bank;
     private readonly SongTable _songs;
@@ -54,7 +60,10 @@ public sealed class RoundGame
         Scores = new int[input.ControllerCount];
     }
 
-    public RoundPhase Phase { get; private set; } = RoundPhase.Idle;
+    public RoundPhase Phase { get; private set; } = RoundPhase.Bumper;
+
+    /// Frame of the bumper animation, at the A2D frame rate.
+    public int BumperFrame { get; private set; }
     public int[] Scores { get; }
     public int QuestionNumber { get; private set; }
     public string QuestionText { get; private set; } = "";
@@ -79,6 +88,13 @@ public sealed class RoundGame
 
         switch (Phase)
         {
+            case RoundPhase.Bumper:
+                BumperFrame = (int)(_phaseElapsed.TotalSeconds * BumperFps);
+                // A buzzer skips the intro, as it does in the game.
+                if (AnyRedPressed() is not null || BumperFrame >= BumperFrames)
+                    StartQuestion();
+                break;
+
             case RoundPhase.Idle:
                 if (AnyRedPressed() is not null) StartQuestion();
                 break;
@@ -191,8 +207,9 @@ public sealed class RoundGame
     {
         Array.Clear(Scores);
         QuestionNumber = 0;
-        Status = "Press any buzzer to start";
-        SetPhase(RoundPhase.Idle);
+        Status = "Press any buzzer to skip";
+        BumperFrame = 0;
+        SetPhase(RoundPhase.Bumper);
     }
 
     private void SetPhase(RoundPhase phase)

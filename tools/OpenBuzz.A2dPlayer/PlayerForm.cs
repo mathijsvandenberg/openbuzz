@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using OpenBuzz.Animation;
+using OpenBuzz.Ui;
 
 namespace OpenBuzz.A2dPlayer;
 

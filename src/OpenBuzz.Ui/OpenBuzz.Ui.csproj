@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\OpenBuzz.Input\OpenBuzz.Input.csproj" />
+    <ProjectReference Include="..\OpenBuzz.Graphics\OpenBuzz.Graphics.csproj" />
+    <ProjectReference Include="..\OpenBuzz.Animation\OpenBuzz.Animation.csproj" />
   </ItemGroup>
 
 </Project>

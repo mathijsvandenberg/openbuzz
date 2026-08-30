@@ -7,7 +7,7 @@ namespace OpenBuzz.Ui;
 /// screen cannot drift apart.
 public static class HandsetRenderer
 {
-    public static void Draw(Graphics g, HandsetLayout h, IBuzzInputSource input, int index,
+    public static void Draw(System.Drawing.Graphics g, HandsetLayout h, IBuzzInputSource input, int index,
                             string caption, Font captionFont, Font buzzerFont)
     {
         using (var body = HandsetLayout.RoundedRect(h.Bounds, 22))
@@ -41,7 +41,7 @@ public static class HandsetRenderer
                      new RectangleF(h.Bounds.X, h.Bounds.Bottom - 28, h.Bounds.Width, 22), sf);
     }
 
-    private static void DrawBuzzer(Graphics g, HandsetLayout h, IBuzzInputSource input, int index, Font font)
+    private static void DrawBuzzer(System.Drawing.Graphics g, HandsetLayout h, IBuzzInputSource input, int index, Font font)
     {
         var lamp = input.Lamp(index);
         var buzzer = h.Buzzer;

@@ -14,6 +14,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\OpenBuzz.Animation\OpenBuzz.Animation.csproj" />
     <ProjectReference Include="..\..\src\OpenBuzz.Graphics\OpenBuzz.Graphics.csproj" />
+    <ProjectReference Include="..\..\src\OpenBuzz.Ui\OpenBuzz.Ui.csproj" />
   </ItemGroup>
 
 </Project>

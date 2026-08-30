@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing.Drawing2D;
 using OpenBuzz.Input;
 using OpenBuzz.Quiz;
+using OpenBuzz.Animation;
 using OpenBuzz.Ui;
 
 namespace OpenBuzz.Round;
@@ -14,6 +15,11 @@ public sealed class RoundForm : Form
     private readonly HandsetLayout[] _handsets;
     private readonly ClipPlayer _player = new();
     private readonly RoundGame _game;
+
+    /// The game's own artwork: A2D timelines, atlas sprites and the recovered
+    /// string map, all shared with the standalone player through OpenBuzz.Ui.
+    private readonly A2dRenderer? _art;
+    private readonly A2dAnimation? _bumper;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 16 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private TimeSpan _lastTick;
@@ -37,6 +43,22 @@ public sealed class RoundForm : Form
                 Gutter + i * (HandsetLayout.Width + 16), 470, HandsetLayout.Width, HandsetLayout.Height));
 
         _game = new RoundGame(bank, songs, _player, _input, soundDir, sampleRate, pool);
+
+        // Artwork is optional: without extracted/a2d and extracted/Textures the
+        // round still plays, it just falls back to the plain presentation.
+        if (A2dScene.FindExportDirectory(AppContext.BaseDirectory) is { } a2dDir)
+        {
+            var scenes = A2dScene.LoadAll(a2dDir);
+            if (scenes.Count > 0)
+            {
+                _art = new A2dRenderer(scenes,
+                                       SpriteLibrary.Discover(AppContext.BaseDirectory),
+                                       TextKeyMap.Discover(AppContext.BaseDirectory));
+
+                _bumper = scenes.FirstOrDefault(s => s.Name.Contains("BUMP_PointsBuilder", StringComparison.Ordinal))
+                          ?.Animations.FirstOrDefault();
+            }
+        }
 
         _timer.Tick += OnTick;
         _timer.Start();
@@ -113,6 +135,13 @@ public sealed class RoundForm : Form
         using var small = new Font("Segoe UI", 9f);
         using var buzzerFont = new Font("Segoe UI", 11f, FontStyle.Bold);
 
+        // The round opens on its A2D bumper, played with the game's own artwork.
+        if (_game.Phase == RoundPhase.Bumper && _art is not null && _bumper is not null)
+        {
+            DrawBumper(g, small, buzzerFont);
+            return;
+        }
+
         g.DrawString($"Question {Math.Max(_game.QuestionNumber, 1)} of {RoundGame.QuestionsPerRound}" +
                      $"     pool: {_game.PoolSize} questions" +
                      (_game.CurrentClip is { } c ? $"     clip: {c}" : ""),
@@ -131,11 +160,60 @@ public sealed class RoundForm : Form
         for (int i = 0; i < _handsets.Length; i++)
             HandsetRenderer.Draw(g, _handsets[i], _input, i, $"Player {i + 1}   {_game.Scores[i]}", small, buzzerFont);
 
+        // At the end, award each player their place medal, as the game does.
+        if (_game.Phase == RoundPhase.Finished)
+        {
+            var ranking = Enumerable.Range(0, _game.Scores.Length)
+                                    .OrderByDescending(i => _game.Scores[i])
+                                    .ToArray();
+            for (int place = 0; place < ranking.Length; place++)
+            {
+                var h = _handsets[ranking[place]].Bounds;
+                DrawMedal(g, place, new Rectangle(h.X + (h.Width - 72) / 2, h.Y - 78, 72, 72));
+            }
+        }
+
         g.DrawString("1-4 buzz    QWER / ASDF / ZXCV / UIOP answer    F5 restart",
                      small, Brushes.DimGray, Gutter, ClientSize.Height - 30);
     }
 
-    private void DrawOption(Graphics g, int index, Font font)
+    /// <summary>
+    /// Plays the round's A2D bumper over the whole window, in the original
+    /// 640x480 design space scaled up. The handsets stay visible underneath so a
+    /// player can see their buzzer is live during the intro.
+    /// </summary>
+    private void DrawBumper(System.Drawing.Graphics g, Font small, Font buzzerFont)
+    {
+        using var background = new SolidBrush(Color.Black);
+        var stage = new Rectangle(0, 0, ClientSize.Width, 460);
+        g.FillRectangle(background, stage);
+
+        var state = A2dRenderer.BeginCanvas(g, stage);
+        _art!.Draw(g, _bumper!, _game.BumperFrame);
+        g.Restore(state);
+
+        for (int i = 0; i < _handsets.Length; i++)
+            HandsetRenderer.Draw(g, _handsets[i], _input, i, $"Player {i + 1}", small, buzzerFont);
+
+        g.DrawString($"{_game.Status}    frame {_game.BumperFrame}/{RoundGame.BumperFrames}",
+                     small, Brushes.DimGray, Gutter, ClientSize.Height - 30);
+    }
+
+    /// <summary>
+    /// Draws the place medal for a finishing position, using the real
+    /// `PIP_1st`..`PIP_4th` sprites when the artwork is available.
+    /// </summary>
+    private void DrawMedal(System.Drawing.Graphics g, int place, Rectangle bounds)
+    {
+        string[] names = ["PIP_1st", "PIP_2nd", "PIP_3rd", "PIP_4th"];
+        if (_art?.Sprites.Find(names[Math.Clamp(place, 0, 3)]) is not { } sprite) return;
+
+        g.DrawImage(sprite.Texture, bounds,
+                    sprite.Source.X, sprite.Source.Y, sprite.Source.Width, sprite.Source.Height,
+                    GraphicsUnit.Pixel);
+    }
+
+    private void DrawOption(System.Drawing.Graphics g, int index, Font font)
     {
         var button = BuzzButtonExtensions.AnswerButtons[index];
         var colour = HandsetLayout.ColourOf(button);
@@ -162,7 +240,7 @@ public sealed class RoundForm : Form
         g.DrawString(option.Text, font, Brushes.Black, text, sf);
     }
 
-    private static void DrawWrapped(Graphics g, string text, Font font, Brush brush, RectangleF bounds)
+    private static void DrawWrapped(System.Drawing.Graphics g, string text, Font font, Brush brush, RectangleF bounds)
     {
         using var sf = new StringFormat { Trimming = StringTrimming.EllipsisWord };
         g.DrawString(text, font, brush, bounds, sf);

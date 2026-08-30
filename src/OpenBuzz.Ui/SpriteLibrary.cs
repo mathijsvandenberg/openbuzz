@@ -1,7 +1,7 @@
 using System.Drawing.Imaging;
 using OpenBuzz.Graphics;
 
-namespace OpenBuzz.A2dPlayer;
+namespace OpenBuzz.Ui;
 
 /// A named sprite: a sub-rectangle of a decoded texture atlas.
 public sealed record Sprite(Bitmap Texture, Rectangle Source, string Atlas);
@@ -9,15 +9,6 @@ public sealed record Sprite(Bitmap Texture, Rectangle Source, string Atlas);
 /// <summary>
 /// Resolves the sprite names in A2D icon bindings to actual pixels, by pairing
 /// each `.uvs` atlas index with its decoded `.tex`.
-///
-/// The pixels are currently wrong: the PS2 index de-interleave is unsolved, so
-/// every texture decodes scrambled (see docs/texture-format.md). Everything
-/// around them is right â€” the atlas rectangles, the sizes, and which sprite
-/// belongs to which object â€” so this draws real artwork in the correct place at
-/// the correct size the moment the swizzle is fixed, and until then it serves as
-/// a far better test of a candidate decode than scoring a whole atlas: a named
-/// sprite at a known size in a known position either looks like itself or does
-/// not.
 /// </summary>
 public sealed class SpriteLibrary : IDisposable
 {
