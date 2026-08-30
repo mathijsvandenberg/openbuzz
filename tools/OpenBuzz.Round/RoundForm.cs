@@ -142,20 +142,13 @@ public sealed class RoundForm : Form
             return;
         }
 
-        g.DrawString($"Question {Math.Max(_game.QuestionNumber, 1)} of {RoundGame.QuestionsPerRound}" +
-                     $"     pool: {_game.PoolSize} questions" +
-                     (_game.CurrentClip is { } c ? $"     clip: {c}" : ""),
-                     small, Brushes.Gray, Gutter, 20);
-
-        DrawWrapped(g, _game.QuestionText, head, Brushes.White,
-                    new RectangleF(Gutter, 48, ClientSize.Width - Gutter * 2, 90));
-
-        for (int i = 0; i < _game.Options.Count; i++) DrawOption(g, i, body);
-
-        using (var statusBrush = new SolidBrush(_game.Phase == RoundPhase.Revealing
-                   ? (_game.LastAnswerCorrect ? Color.FromArgb(120, 230, 140) : Color.FromArgb(240, 120, 110))
-                   : Color.Gainsboro))
-            g.DrawString(_game.Status, body, statusBrush, Gutter, 420);
+        // The question screen is drawn in the game's own 640x480 design space and
+        // scaled up, so proportions and layout match the original rather than
+        // being re-invented for whatever the window happens to be.
+        var stage = new Rectangle(0, 0, ClientSize.Width, 460);
+        var state = A2dRenderer.BeginCanvas(g, stage);
+        DrawQuestionScreen(g);
+        g.Restore(state);
 
         for (int i = 0; i < _handsets.Length; i++)
             HandsetRenderer.Draw(g, _handsets[i], _input, i, $"Player {i + 1}   {_game.Scores[i]}", small, buzzerFont);
@@ -175,6 +168,115 @@ public sealed class RoundForm : Form
 
         g.DrawString("1-4 buzz    QWER / ASDF / ZXCV / UIOP answer    F5 restart",
                      small, Brushes.DimGray, Gutter, ClientSize.Height - 30);
+    }
+
+    /// <summary>
+    /// Draws the question screen the way the game does: the question centred and
+    /// numbered at the top, then four rows of a small coloured button followed by
+    /// left-aligned white text, and the player viewports along the bottom.
+    ///
+    /// All coordinates are in the 640x480 design space, matching the A2D data, so
+    /// this sits in the same coordinate system as the bumper and the animations.
+    /// </summary>
+    private void DrawQuestionScreen(System.Drawing.Graphics g)
+    {
+        const float W = 640, H = 480;
+
+        using (var panel = new LinearGradientBrush(new RectangleF(0, 0, W, H),
+                   Color.FromArgb(58, 72, 88), Color.FromArgb(30, 38, 50), LinearGradientMode.Vertical))
+            g.FillRectangle(panel, 0, 0, W, H);
+
+        // Faint horizontal banding, as on the game's back-projected screen.
+        using (var band = new SolidBrush(Color.FromArgb(10, 255, 255, 255)))
+            for (int y = 0; y < H; y += 90)
+                g.FillRectangle(band, 0, y, W, 45);
+
+        using var title = new Font("Segoe UI", 15f, FontStyle.Bold);
+        using var answerFont = new Font("Segoe UI", 12f, FontStyle.Bold);
+        using var small = new Font("Segoe UI", 7.5f);
+
+        using (var centre = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            g.DrawString($"{Math.Max(_game.QuestionNumber, 1)}: {_game.QuestionText}",
+                         title, Brushes.White, new RectangleF(40, 26, W - 80, 76), centre);
+
+        bool reveal = _game.Phase is RoundPhase.Revealing or RoundPhase.Finished;
+
+        for (int i = 0; i < _game.Options.Count; i++)
+        {
+            var option = _game.Options[i];
+            var colour = HandsetLayout.ColourOf(BuzzButtonExtensions.AnswerButtons[i]);
+            float y = 142 + i * 52;
+
+            // The button is a dark square with a bright coloured border, not a
+            // filled bar - that is what makes the screen read as the game's.
+            var button = new RectangleF(72, y, 34, 34);
+            using (var face = new SolidBrush(Color.FromArgb(230, 18, 22, 30)))
+            using (var edge = new Pen(colour, 3f))
+            using (var path = HandsetLayout.RoundedRect(Rectangle.Round(button), 7))
+            {
+                g.FillPath(face, path);
+                g.DrawPath(edge, path);
+            }
+
+            var textColour = reveal
+                ? (option.IsCorrect ? Color.FromArgb(150, 255, 170) : Color.FromArgb(150, 158, 170))
+                : Color.White;
+
+            using var brush = new SolidBrush(textColour);
+            using var format = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
+            g.DrawString(option.Text.ToUpperInvariant(), answerFont, brush,
+                         new RectangleF(122, y - 4, W - 150, 42), format);
+
+            if (reveal && _game.ChosenOption == i)
+                using (var marker = new Pen(Color.White, 2f))
+                    g.DrawEllipse(marker, 54, y + 12, 10, 10);
+        }
+
+        DrawViewports(g, small);
+
+        using (var status = new SolidBrush(reveal
+                   ? (_game.LastAnswerCorrect ? Color.FromArgb(140, 235, 160) : Color.FromArgb(240, 130, 120))
+                   : Color.FromArgb(200, 210, 225)))
+        using (var centre = new StringFormat { Alignment = StringAlignment.Center })
+            g.DrawString(_game.Status, answerFont, status, new RectangleF(0, 352, W, 24), centre);
+    }
+
+    /// Player viewports along the bottom, using the game's own frame sprites.
+    private void DrawViewports(System.Drawing.Graphics g, Font font)
+    {
+        var surround = _art?.Sprites.Find("PortraitSurroundWhite");
+        var bar = _art?.Sprites.Find("ViewportBarWhite");
+
+        for (int i = 0; i < _input.ControllerCount; i++)
+        {
+            float x = 92 + i * 118;
+            var frame = new RectangleF(x, 386, 94, 60);
+
+            if (surround is { } s)
+                g.DrawImage(s.Texture, Rectangle.Round(frame),
+                            s.Source.X, s.Source.Y, s.Source.Width, s.Source.Height, GraphicsUnit.Pixel);
+            else
+                using (var pen = new Pen(Color.FromArgb(120, 200, 230), 2f))
+                    g.DrawRectangle(pen, frame.X, frame.Y, frame.Width, frame.Height);
+
+            // A buzzed-in player's viewport lights up, as in the game.
+            if (_game.BuzzedPlayer == i)
+                using (var glow = new Pen(Color.FromArgb(255, 240, 120), 3f))
+                    g.DrawRectangle(glow, frame.X - 2, frame.Y - 2, frame.Width + 4, frame.Height + 4);
+
+            var label = new RectangleF(x, 446, 94, 22);
+            if (bar is { } b)
+                g.DrawImage(b.Texture, Rectangle.Round(label),
+                            b.Source.X, b.Source.Y, b.Source.Width, b.Source.Height, GraphicsUnit.Pixel);
+
+            using var text = new SolidBrush(Color.White);
+            using var centre = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            g.DrawString($"SPELER {i + 1}", font, text, label, centre);
+
+            using var scoreBrush = new SolidBrush(Color.FromArgb(190, 210, 235));
+            g.DrawString($"{_game.Scores[i]}", font, scoreBrush,
+                         new RectangleF(x, 404, 94, 20), centre);
+        }
     }
 
     /// <summary>
@@ -211,39 +313,6 @@ public sealed class RoundForm : Form
         g.DrawImage(sprite.Texture, bounds,
                     sprite.Source.X, sprite.Source.Y, sprite.Source.Width, sprite.Source.Height,
                     GraphicsUnit.Pixel);
-    }
-
-    private void DrawOption(System.Drawing.Graphics g, int index, Font font)
-    {
-        var button = BuzzButtonExtensions.AnswerButtons[index];
-        var colour = HandsetLayout.ColourOf(button);
-        var rect = new Rectangle(Gutter, 160 + index * 60, ClientSize.Width - Gutter * 2, 50);
-
-        bool reveal = _game.Phase is RoundPhase.Revealing or RoundPhase.Finished;
-        var option = _game.Options[index];
-
-        // During the reveal, mark the right answer and the player's mistake.
-        Color fill = colour;
-        if (reveal && option.IsCorrect) fill = ControlPaint.Light(colour, 0.9f);
-        else if (reveal) fill = ControlPaint.Dark(colour, 0.45f);
-
-        using (var path = HandsetLayout.RoundedRect(rect, 12))
-        using (var brush = new SolidBrush(fill))
-        {
-            g.FillPath(brush, path);
-            if (reveal && _game.ChosenOption == index)
-                using (var pen = new Pen(Color.White, 3f)) g.DrawPath(pen, path);
-        }
-
-        var text = new Rectangle(rect.X + 18, rect.Y, rect.Width - 36, rect.Height);
-        using var sf = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter, FormatFlags = StringFormatFlags.NoWrap };
-        g.DrawString(option.Text, font, Brushes.Black, text, sf);
-    }
-
-    private static void DrawWrapped(System.Drawing.Graphics g, string text, Font font, Brush brush, RectangleF bounds)
-    {
-        using var sf = new StringFormat { Trimming = StringTrimming.EllipsisWord };
-        g.DrawString(text, font, brush, bounds, sf);
     }
 
     protected override void Dispose(bool disposing)
