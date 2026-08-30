@@ -49,6 +49,33 @@ try
             };
         }
 
+        case "rw":
+
+        {
+
+            var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "summary";
+
+            var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "RWStream");
+
+            return sub switch
+
+            {
+
+                "summary" => RwCommands.Summary(inDir),
+
+                "tree" => RwCommands.Tree(Opt(args, "--file") ?? Path.Combine(inDir, "AngieCostume01.rp2"),
+
+                              int.Parse(Opt(args, "--depth") ?? "6")),
+
+                "textures" => RwCommands.Textures(inDir, Opt(args, "--out") ?? Path.Combine(defaultExtract, "rwpng")),
+
+                _ => Fail($"unknown rw subcommand '{sub}'"),
+
+            };
+
+        }
+
+
         case "quiz":
         {
             var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "stats";
@@ -102,6 +129,7 @@ try
             var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "Sound");
             return sub switch
             {
+                "probe" => AudioCommands.Probe(inDir, int.Parse(Opt(args, "--limit") ?? "16")),
                 "rates" => AudioCommands.VagRates(inDir),
                 "decode" => AudioCommands.Decode(inDir,
                                 Opt(args, "--out") ?? Path.Combine(repoRoot, "extracted", "wav"),

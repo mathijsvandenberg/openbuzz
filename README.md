@@ -8,7 +8,7 @@ will. The engine reads assets from a copy of the original disc that you supply;
 the music clips in particular are licensed recordings that cannot be
 redistributed. `.gitignore` is deliberately aggressive about this.
 
-That extends to `docs/disasm/` â€” disassembled Lua is the game's own code, so it
+That extends to `docs/disasm/` Ã¢â‚¬â€ disassembled Lua is the game's own code, so it
 stays local and is regenerated from your disc with `obz lua`. What *is* checked
 in are the derived summaries: the format notes and the API name/arity tables,
 which describe the interface rather than reproduce the implementation.
@@ -19,20 +19,20 @@ Format work is done for the layers that matter most; nothing renders yet.
 
 | Area | State |
 |---|---|
-| `.PAK` archives | **Solved** â€” plain ZIP, stored. 4953 files extract in ~9s. |
-| Lua `.clu` bytecode | **Solved** â€” custom Lua 5.0 fully decoded, 149/149 chunks. See [lua-format.md](docs/lua-format.md). |
-| Native API surface | **Mapped** â€” 688 host functions. See [host-api.md](docs/host-api.md). |
-| Text / questions | **Solved** â€” 8374 Dutch questions across 13 pools, all references validate. See [quiz-format.md](docs/quiz-format.md). |
-| `.vgp` audio | **Solved** â€” 2336-byte sectors; stereo music / mono speech auto-detected from the trailer, 44100 Hz. See [audio-format.md](docs/audio-format.md). |
-| `.vag` audio | **Solved** â€” standard 48-byte header, declares 11025/22050/44100 Hz |
-| Controllers | **Virtual panel working** â€” 4 handsets, lamps, behind `IBuzzInputSource` |
-| Playable round | **Working** â€” `obz-round` plays a clip, takes buzzes, scores. Songâ†’clip link unverified. |
-| Song table | `rri.dat` decoded â€” 1000 songs, release year + clip name, all clips present |
+| `.PAK` archives | **Solved** Ã¢â‚¬â€ plain ZIP, stored. 4953 files extract in ~9s. |
+| Lua `.clu` bytecode | **Solved** Ã¢â‚¬â€ custom Lua 5.0 fully decoded, 149/149 chunks. See [lua-format.md](docs/lua-format.md). |
+| Native API surface | **Mapped** Ã¢â‚¬â€ 688 host functions. See [host-api.md](docs/host-api.md). |
+| Text / questions | **Solved** Ã¢â‚¬â€ 8374 Dutch questions across 13 pools, all references validate. See [quiz-format.md](docs/quiz-format.md). |
+| `.vgp` audio | **Solved** Ã¢â‚¬â€ 2336-byte sectors; stereo music / mono speech auto-detected from the trailer, 44100 Hz. See [audio-format.md](docs/audio-format.md). |
+| `.vag` audio | **Solved** Ã¢â‚¬â€ standard 48-byte header, declares 11025/22050/44100 Hz |
+| Controllers | **Virtual panel working** Ã¢â‚¬â€ 4 handsets, lamps, behind `IBuzzInputSource` |
+| Playable round | **Working** Ã¢â‚¬â€ `obz-round` plays a clip, takes buzzes, scores. SongÃ¢â€ â€™clip link unverified. |
+| Song table | `rri.dat` decoded Ã¢â‚¬â€ 1000 songs, release year + clip name, all clips present |
 | `.tex` textures | **Solved** - 42/42 decode, verified against PCSX2 captures. See [texture-format.md](docs/texture-format.md). |
-| A2D animations | **Solved** — 176 animations, 21030 keyframes exported to JSON. See [a2d-format.md](docs/a2d-format.md). |
-| `.rp2` models | Not started â€” RenderWare PS2 streams |
-| `.pss` / `.ipu` video | Not started â€” MPEG-2 program stream / Sony IPU |
-| Real Buzz HID | Not started â€” USB HID, Sony VID `0x054C` |
+| A2D animations | **Solved** â€” 176 animations, 21030 keyframes exported to JSON. See [a2d-format.md](docs/a2d-format.md). |
+| `.rp2` models | **Partial** - streams parsed, 445 embedded textures extracted; geometry is VU1 DMA chains, not started. See [rw-format.md](docs/rw-format.md). |
+| `.pss` / `.ipu` video | Not started Ã¢â‚¬â€ MPEG-2 program stream / Sony IPU |
+| Real Buzz HID | Not started Ã¢â‚¬â€ USB HID, Sony VID `0x054C` |
 
 ## What the disc turned out to be
 
@@ -59,9 +59,9 @@ format, emitting keyframes via `Col` / `Tfm` / `Bbx` / `Obj` / `Anm`
 
 ## Two viable ports
 
-1. **Reimplement in C#** â€” use `docs/disasm/` as the specification. Clean, and
+1. **Reimplement in C#** Ã¢â‚¬â€ use `docs/disasm/` as the specification. Clean, and
    you own the result.
-2. **Embed Lua 5.0 and run the original bytecode** â€” implement the 688 native
+2. **Embed Lua 5.0 and run the original bytecode** Ã¢â‚¬â€ implement the 688 native
    functions as a shim. Much higher fidelity; the VM needs patching for the two
    format deviations documented in `lua-format.md`.
 
@@ -84,8 +84,8 @@ with `GetRandomisedIndex`.
 `--locale` the language.
 
 **Caveat:** the round assumes a question's `SongId` indexes `rri.dat` directly.
-That is structurally sound â€” both are 0..999, and all 1000 clip names resolve to
-real files â€” but it is not verified. If the on-screen answers do not fit what
+That is structurally sound Ã¢â‚¬â€ both are 0..999, and all 1000 clip names resolve to
+real files Ã¢â‚¬â€ but it is not verified. If the on-screen answers do not fit what
 you hear, that assumption is where to look.
 
 ## Watching the animations
@@ -133,9 +133,9 @@ Re-derives the RK constant/register split from the corpus.
 
 ## Next up
 
-- Parse `BM1/Text/NET/*.str` + `.ndx` â€” get the Dutch question bank readable.
+- Parse `BM1/Text/NET/*.str` + `.ndx` Ã¢â‚¬â€ get the Dutch question bank readable.
 - Decode `.vgp`; check against vgmstream's PS2 ADPCM handling.
-- Prototype the Buzz controller HID layer (HidSharp) â€” independent of everything
+- Prototype the Buzz controller HID layer (HidSharp) Ã¢â‚¬â€ independent of everything
   else, and cheap.
 - Decompile rather than disassemble the Lua, to firm up route 2.
 
