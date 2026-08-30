@@ -1,4 +1,4 @@
-﻿# OpenBuzz
+# OpenBuzz
 
 A from-scratch PC (x64) reimplementation of *Buzz!: The Music Quiz* (PS2,
 SCES-53305), targeting C# and Dutch as the first locale.
@@ -28,7 +28,7 @@ Format work is done for the layers that matter most; nothing renders yet.
 | Controllers | **Virtual panel working** â€” 4 handsets, lamps, behind `IBuzzInputSource` |
 | Playable round | **Working** â€” `obz-round` plays a clip, takes buzzes, scores. Songâ†’clip link unverified. |
 | Song table | `rri.dat` decoded â€” 1000 songs, release year + clip name, all clips present |
-| `.tex` textures | **Partial** â€” headers, sizes, palettes and `.uvs` atlases correct; pixel de-interleave unsolved, images decode scrambled. See [texture-format.md](docs/texture-format.md). |
+| `.tex` textures | **Solved** - 42/42 decode, verified against PCSX2 captures. See [texture-format.md](docs/texture-format.md). |
 | A2D animations | **Solved** — 176 animations, 21030 keyframes exported to JSON. See [a2d-format.md](docs/a2d-format.md). |
 | `.rp2` models | Not started â€” RenderWare PS2 streams |
 | `.pss` / `.ipu` video | Not started â€” MPEG-2 program stream / Sony IPU |

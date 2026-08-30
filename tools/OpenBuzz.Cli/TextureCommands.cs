@@ -1,4 +1,4 @@
-﻿using OpenBuzz.Graphics;
+using OpenBuzz.Graphics;
 
 namespace OpenBuzz.Cli;
 
@@ -21,7 +21,7 @@ public static class TextureCommands
             {
                 var t = Ps2Texture.Parse(bytes, Path.GetFileNameWithoutExtension(path));
                 int payload = (t.Depth == 8 ? t.Width * t.Height : t.Width * t.Height / 2)
-                            + (t.Depth == 8 ? 1024 : 64);
+                            + (t.Depth == 8 ? 1024 : 64) + 2 * Ps2Texture.BlockHeader;
                 int header = bytes.Length - payload;
                 slack += header;
                 ok++;
@@ -37,7 +37,7 @@ public static class TextureCommands
 
         Console.WriteLine();
         Console.WriteLine($"parsed {ok}/{files.Length}, failed {failed}");
-        if (ok > 0) Console.WriteLine($"mean header size {slack / ok} bytes (payload is taken from the file tail)");
+        if (ok > 0) Console.WriteLine($"mean chunk overhead {slack / ok} bytes (payload located via declared pixelSize/paletteSize)");
         return failed == 0 ? 0 : 2;
     }
 

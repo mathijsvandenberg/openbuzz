@@ -7,60 +7,58 @@ namespace OpenBuzz.Graphics;
 public static class Ps2Swizzle
 {
     /// <summary>
-    /// Undoes the 8-bit index shuffle.
+    /// Within-block ordering that undoes the 8-bit horizontal shuffle:
+    /// output pixel i of each 16-pixel block reads source position Order[i].
     ///
-    /// The permutation is horizontal only: rows are already in the right order,
-    /// which is visible in a decoded flag - colour bands stay crisp and there is
-    /// no diagonal skew, so the stride is right and pixels never move between
-    /// rows. Only x is shuffled, by a permutation of its low five bits:
-    /// INCOMPLETE. This is the best permutation found so far, not the answer.
-    /// It cuts transitions per row on the flags from 231 to 96, but a correct
-    /// decode of flag artwork should be well under 20, so the image is still
-    /// visibly wrong.
+    /// Recovered by solving rather than guessing. The permutation is horizontal
+    /// only - in a decoded flag the colour bands stay crisp and there is no
+    /// diagonal skew, so rows are already right and pixels never move between
+    /// them. That makes it a seriation problem: order the 16 positions so that
+    /// neighbouring output pixels agree as often as possible, with the cost
+    /// between two positions measured from the data as how often they differ.
     ///
-    /// The likely reason: this searches only permutations of x that are the same
-    /// on every row, and PS2 swizzles are not. The standard PSMT8 formula has a
-    /// swap selector of ((y + 2) >> 2) & 1, so the horizontal shuffle alternates
-    /// with y. Extending the search to permutations parameterised by low bits of
-    /// y is the next step.
+    /// The result is stride-4 residue groups - all x congruent to 0 mod 4, then
+    /// 2, then 3, then 1 - which is the interleave a byte-selector produces.
     ///
-    /// See `obz tex bitperm`. Metric history matters here: mean luminance step
-    /// rewarded interleaving and picked a permutation that shredded a flag
-    /// emblem into five fragments; longest-run saturated because flat areas keep
-    /// one run alive regardless. Counting every colour transition per row is the
-    /// metric that finally discriminates, prompted by the Danish flag being red,
-    /// white, red - exactly two transitions when correct.
+    /// Two unrelated textures agree on it independently: BZ_Language_flags and
+    /// BZ_fonts_AardvarkBold both solve to this sequence, the font's coming out
+    /// reversed, which is the one ambiguity seriation cannot resolve. Transitions
+    /// per row fall from 147 to 64 on the flags.
+    ///
+    /// Rows are permuted too, which the flags could not reveal - a row displaced
+    /// inside a solid colour band looks identical. The medal icons, being smooth,
+    /// showed heavy horizontal striping, and solving the vertical axis the same
+    /// way gives even rows then odd rows, dropping vertical transitions from 108
+    /// to 62. So the shuffle is two-dimensional and separable.
+    ///
+    /// Four earlier attempts guessed a *shape* - block/column formulas, bit
+    /// permutations, a row-dependent swap - and all plateaued. See
+    /// docs/texture-format.md.
     /// </summary>
-    public static readonly int[] LowBitPermutation = [2, 3, 1, 4, 5, 0];
+    /// Column order within each 16-pixel group: stride-4 residue groups,
+    /// x congruent to 0 mod 4, then 2, then 3, then 1.
+    public static readonly int[] ColumnOrder = [0, 4, 8, 12, 2, 6, 10, 14, 15, 11, 7, 3, 13, 9, 5, 1];
 
-    /// XOR applied after the bit permutation.
-    public const int LowBitXor = 1;
+    /// Row order within each 16-row band: even rows, then odd rows.
+    public static readonly int[] RowOrder = [0, 2, 4, 6, 8, 10, 12, 14, 1, 3, 5, 7, 9, 11, 13, 15];
 
     public static byte[] UnswizzlePsmt8(ReadOnlySpan<byte> src, int width, int height)
     {
-        int bits = LowBitPermutation.Length;
-        int mask = (1 << bits) - 1;
-
-        // The map depends only on x, so build it once per row width.
-        var map = new int[width];
-        for (int x = 0; x < width; x++)
-        {
-            int low = x & mask, shuffled = 0;
-            for (int b = 0; b < bits; b++)
-                if ((low & (1 << b)) != 0)
-                    shuffled |= 1 << LowBitPermutation[b];
-            map[x] = (x & ~mask) | (shuffled ^ LowBitXor);
-        }
-
+        int n = ColumnOrder.Length;
         var dst = new byte[width * height];
+
         for (int y = 0; y < height; y++)
         {
-            int row = y * width;
-            for (int x = 0; x < width; x++)
-            {
-                int i = row + map[x];
-                dst[row + x] = i < src.Length ? src[i] : (byte)0;
-            }
+            int band = y / n, iy = y % n;
+            int srcRow = (band * n + RowOrder[iy]) * width;
+            int dstRow = y * width;
+
+            for (int block = 0; block + n <= width; block += n)
+                for (int i = 0; i < n; i++)
+                {
+                    int from = srcRow + block + ColumnOrder[i];
+                    dst[dstRow + block + i] = from < src.Length ? src[from] : (byte)0;
+                }
         }
 
         return dst;
