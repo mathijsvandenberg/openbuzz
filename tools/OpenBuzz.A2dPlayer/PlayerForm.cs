@@ -6,13 +6,15 @@ using OpenBuzz.Animation;
 namespace OpenBuzz.A2dPlayer;
 
 /// <summary>
-/// Plays the extracted A2D timelines as placeholder rectangles.
+/// Plays the extracted A2D timelines with the game''s own artwork: sprites
+/// resolved through the .uvs atlases into decoded textures, and text through
+/// the recovered key map.
 ///
-/// The point is to confirm the choreography - positions, easing, timing, bounds
-/// - before any artwork exists, so the layout can be verified independently of
-/// the unsolved texture decode. Coordinates are used exactly as exported and the
-/// 640x480 design space is scaled to the window, so this is already a
-/// full-resolution render of the original layout: nothing is resampled.
+/// Coordinates are used exactly as exported and the 640x480 design space is
+/// scaled to the window by a transform, so this is a full-resolution render of
+/// the original layout rather than an upscaled bitmap.
+///
+/// D hides the debug chrome for comparison against an emulator capture.
 /// </summary>
 public sealed class PlayerForm : Form
 {
@@ -37,6 +39,10 @@ public sealed class PlayerForm : Form
     /// Textures decode scrambled until the swizzle is solved, so drawing them
     /// is opt-out rather than forced.
     private bool _showSprites = true;
+
+    /// Hides the debug chrome - grid, bounding boxes, origin dots, labels - so a
+    /// frame can be compared against an emulator capture directly.
+    private bool _showDebug = true;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 8 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
 
@@ -156,6 +162,7 @@ public sealed class PlayerForm : Form
             case Keys.F: _fps = _fps == 25 ? 50 : 25; Restart(); break;
             case Keys.N: _showNames = !_showNames; break;
             case Keys.T: _showSprites = !_showSprites; break;
+            case Keys.D: _showDebug = !_showDebug; break;
             case Keys.OemPeriod: _playing = false; _frame = Math.Min(_frame + 1, Animation.FrameCount); break;
             case Keys.Oemcomma: _playing = false; _frame = Math.Max(0, _frame - 1); break;
             case Keys.Escape: Close(); break;
@@ -213,11 +220,17 @@ public sealed class PlayerForm : Form
         g.ScaleTransform(scale, scale);
         g.SetClip(new RectangleF(0, 0, A2dScene.CanvasWidth, A2dScene.CanvasHeight));
 
-        DrawCanvas(g);
+        if (_showDebug) DrawCanvas(g); else ClearCanvas(g);
         foreach (var obj in Animation.Objects) DrawObject(g, obj, scale);
 
         g.Restore(state);
         DrawHud(g, hud);
+    }
+
+    private static void ClearCanvas(System.Drawing.Graphics g)
+    {
+        using var bg = new SolidBrush(Color.Black);
+        g.FillRectangle(bg, 0, 0, A2dScene.CanvasWidth, A2dScene.CanvasHeight);
     }
 
     private static void DrawCanvas(System.Drawing.Graphics g)
@@ -257,16 +270,22 @@ public sealed class PlayerForm : Form
         g.RotateTransform(t.Rotation * (_flipY ? -1f : 1f));
         g.ScaleTransform(t.ScaleX, _flipY ? -t.ScaleY : t.ScaleY);
 
-        var local = new RectangleF(box.Left, box.Bottom, box.Width, box.Height);
-        using (var fill = new SolidBrush(Color.FromArgb(a * 28 / 100, tint)))
+        if (_showDebug)
+        {
+            var local = new RectangleF(box.Left, box.Bottom, box.Width, box.Height);
+            using var fill = new SolidBrush(Color.FromArgb(a * 28 / 100, tint));
             g.FillRectangle(fill, local);
-        using (var edge = new Pen(Color.FromArgb(a, tint), 1.4f))
+            using var edge = new Pen(Color.FromArgb(a, tint), 1.4f);
             g.DrawRectangle(edge, local.X, local.Y, local.Width, local.Height);
+        }
 
         g.Restore(state);
 
-        using (var dot = new SolidBrush(Color.FromArgb(a, tint)))
+        if (_showDebug)
+        {
+            using var dot = new SolidBrush(Color.FromArgb(a, tint));
             g.FillEllipse(dot, origin.X - 1.6f, origin.Y - 1.6f, 3.2f, 3.2f);
+        }
 
         // A text-bound object renders its string rather than its object name,
         // laid out with the justification and relative size the scripts specify.
@@ -322,7 +341,7 @@ public sealed class PlayerForm : Form
 
 
 
-        if (_showNames && box.Width * t.ScaleX >= 44 && box.Height * t.ScaleY >= 16)
+        if (_showDebug && _showNames && box.Width * t.ScaleX >= 44 && box.Height * t.ScaleY >= 16)
         {
             using var font = new Font("Segoe UI", 6.5f);
             using var text = new SolidBrush(Color.FromArgb(Math.Min(255, a + 40), Color.White));
@@ -389,7 +408,7 @@ public sealed class PlayerForm : Form
                      mid, new SolidBrush(Color.FromArgb(150, 190, 240)), 16, top + 34);
 
         g.DrawString("arrows: animation / scene    space: play-pause    , . step frame    " +
-                     "R restart    Y flip axis    F fps    N names    T sprites    Esc quit",
+                     "R restart    Y flip axis    F fps    N names  T sprites  D clean  Esc quit",
                      small, new SolidBrush(Color.FromArgb(120, 124, 134)), 16, top + 58);
 
         // Progress bar for the current clip.
