@@ -79,6 +79,20 @@ try
         }
 
 
+        case "model":
+        {
+            var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "list";
+            var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "RWStream");
+            return sub switch
+            {
+                "list" => ModelCommands.List(inDir),
+                "export" => ModelCommands.Export(inDir,
+                                Opt(args, "--out") ?? Path.Combine(defaultExtract, "models"),
+                                Opt(args, "--only")),
+                _ => Fail($"unknown model subcommand '{sub}'"),
+            };
+        }
+
         case "font":
         {
             var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "list";
