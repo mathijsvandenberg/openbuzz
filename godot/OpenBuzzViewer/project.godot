@@ -1,0 +1,17 @@
+config_version=5
+
+[application]
+
+config/name="OpenBuzz Model Viewer"
+config/description="Views the models and animations extracted from a Buzz! disc."
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.4", "Forward Plus")
+
+[display]
+
+window/size/viewport_width=1240
+window/size/viewport_height=720
+
+[rendering]
+
+textures/canvas_textures/default_texture_filter=0

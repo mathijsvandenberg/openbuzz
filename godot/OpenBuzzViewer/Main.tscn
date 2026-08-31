@@ -1,0 +1,110 @@
+[gd_scene load_steps=4 format=3 uid="uid://c8obzviewer001"]
+
+[ext_resource type="Script" path="res://Main.gd" id="1_main"]
+
+[sub_resource type="Environment" id="Env_1"]
+background_mode = 1
+background_color = Color(0.086, 0.086, 0.11, 1)
+ambient_light_source = 1
+ambient_light_color = Color(0.5, 0.5, 0.56, 1)
+ambient_light_energy = 1.1
+
+[sub_resource type="StyleBoxFlat" id="Panel_1"]
+bg_color = Color(0.11, 0.11, 0.13, 1)
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_main")
+
+[node name="Viewport" type="SubViewportContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 300.0
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="Viewport"]
+handle_input_locally = false
+size = Vector2i(940, 720)
+render_target_update_mode = 4
+
+[node name="World" type="Node3D" parent="Viewport/SubViewport"]
+unique_name_in_owner = true
+
+[node name="Camera" type="Camera3D" parent="Viewport/SubViewport"]
+unique_name_in_owner = true
+
+[node name="Sun" type="DirectionalLight3D" parent="Viewport/SubViewport"]
+transform = Transform3D(0.82, -0.35, 0.45, 0, 0.79, 0.61, -0.57, -0.5, 0.65, 0, 6, 0)
+light_energy = 2.0
+shadow_enabled = true
+
+[node name="Fill" type="DirectionalLight3D" parent="Viewport/SubViewport"]
+transform = Transform3D(-0.7, 0.3, -0.65, 0, 0.91, 0.42, 0.71, 0.29, -0.64, 0, 6, 0)
+light_energy = 0.7
+
+[node name="Environment" type="WorldEnvironment" parent="Viewport/SubViewport"]
+environment = SubResource("Env_1")
+
+[node name="Sidebar" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 9
+anchor_bottom = 1.0
+offset_right = 300.0
+theme_override_styles/panel = SubResource("Panel_1")
+
+[node name="Box" type="VBoxContainer" parent="Sidebar"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Heading" type="Label" parent="Sidebar/Box"]
+layout_mode = 2
+text = "  OpenBuzz model viewer"
+
+[node name="Title" type="Label" parent="Sidebar/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.62, 0.68, 1)
+theme_override_font_sizes/font_size = 10
+text = "  "
+autowrap_mode = 3
+
+[node name="ModelsLabel" type="Label" parent="Sidebar/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.7, 0.78, 1)
+text = "  Model"
+
+[node name="Models" type="ItemList" parent="Sidebar/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+allow_reselect = true
+
+[node name="ClipsLabel" type="Label" parent="Sidebar/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.7, 0.78, 1)
+text = "  Animation"
+
+[node name="Clips" type="ItemList" parent="Sidebar/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_vertical = 3
+allow_reselect = true
+
+[node name="Status" type="Label" parent="Sidebar/Box"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.74, 0.8, 1)
+theme_override_font_sizes/font_size = 11
+text = "  "
+autowrap_mode = 3
+
+[node name="Help" type="Label" parent="Sidebar/Box"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.52, 0.58, 1)
+theme_override_font_sizes/font_size = 10
+text = "  drag to orbit, wheel to zoom"
