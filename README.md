@@ -25,14 +25,14 @@ Format work is done for the layers that matter most; nothing renders yet.
 | Text / questions | **Solved** - 8374 Dutch questions across 13 pools, all references validate. See [quiz-format.md](docs/quiz-format.md). |
 | `.vgp` audio | **Solved** - 2336-byte sectors; stereo music / mono speech auto-detected from the trailer, 44100 Hz. See [audio-format.md](docs/audio-format.md). |
 | `.vag` audio | **Solved** - standard 48-byte header, declares 11025/22050/44100 Hz |
-| Controllers | **Virtual panel working** - 4 handsets, lamps, behind `IBuzzInputSource` |
+| Controllers | **Real hardware working** - wired Buzz buzzers read as one HID pad (`054C:1000`) in the Godot round; virtual panel still behind `IBuzzInputSource` in the C# tools |
 | Playable round | **Working** - `obz-round` plays a clip, takes buzzes, scores. Song-clip link unverified. |
 | Song table | `rri.dat` decoded - 1000 songs, release year + clip name, all clips present |
 | `.tex` textures | **Solved** - 42/42 decode, verified against PCSX2 captures. See [texture-format.md](docs/texture-format.md). |
 | A2D animations | **Solved** - 176 animations, 21030 keyframes exported to JSON. See [a2d-format.md](docs/a2d-format.md). |
 | `.rp2` models | **Solved** - all 968 geometries, plus skeletons, skin weights and 816 animation clips; exported to rigged glTF. See [rw-format.md](docs/rw-format.md). |
 | Fonts | **Solved** - six bitmap fonts per stream: glyph rects, advances, character map; rendering in the round. See [font-format.md](docs/font-format.md). |
-| Godot viewer | `obz-viewer.exe` - Godot 4.7.2 build with two tabs: every model with its clips, and the 2D layer in the game fonts. See [godot/OpenBuzzViewer](godot/OpenBuzzViewer/README.md). |
+| Godot build | `obz-viewer.exe` - three tabs: models with their clips, the 2D layer in the game fonts, and a round playable on the real USB buzzers. See [godot/OpenBuzzViewer](godot/OpenBuzzViewer/README.md). |
 | `.pss` / `.ipu` video | Not started - MPEG-2 program stream / Sony IPU |
 | Real Buzz HID | Not started - USB HID, Sony VID `0x054C` |
 

@@ -81,7 +81,9 @@ try
 
         case "bundle":
             return BundleCommands.Run(defaultExtract,
-                       Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d"));
+                       Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d"),
+                       Opt(args, "--locale") ?? "NET",
+                       int.Parse(Opt(args, "--limit") ?? "400"));
 
         case "model":
         {

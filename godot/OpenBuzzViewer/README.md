@@ -7,6 +7,9 @@ Two tabs, built with Godot 4.7.2 (.NET).
 **2D layer** - the A2D timelines, drawn with the game's own atlas sprites and
 bitmap fonts. Space pauses.
 
+**Round** - a playable round on the real buzzers. A clip plays, someone hits
+their red button, that player picks a colour. Right answer +1, wrong -1.
+
 ```bash
 dist/obz-viewer.exe
 ```
@@ -19,9 +22,13 @@ Nothing is built into the executable. Both tabs read from `extracted/`, walking
 up from wherever the exe sits:
 
 ```bash
-obz model export     # -> extracted/models/*.glb    for the Models tab
-obz bundle           # -> extracted/godot2d/        for the 2D layer tab
+obz model export             # -> extracted/models/*.glb   for the Models tab
+obz audio decode --limit 120 # -> extracted/wav/*.wav      the round needs clips
+obz bundle                   # -> extracted/godot2d/       2D layer and questions
 ```
+
+`obz bundle` only writes questions whose clip has been decoded, so decode first
+or the round has nothing to play.
 
 Models load at runtime through `GLTFDocument` rather than as imported
 resources. The 2D layer reads the bundle: PNG atlases plus JSON tables of
@@ -48,3 +55,19 @@ the build gets verified:
 ```bash
 dist/obz-viewer.exe -- --tab 1 --shot check.png
 ```
+
+## Controllers
+
+The wired Buzz buzzers enumerate as a single HID game controller - "Namtai
+Buzz", vendor `0x054C` product `0x1000` - carrying all four handsets in one
+report. SDL has no gamepad mapping for it, so `Round.gd` reads the buttons raw,
+five per handset in report order, and finds the pad by its vendor and product
+id rather than by name.
+
+**The colour order is the documented layout, not something measured here.** The
+status bar names the handset, the slot and the raw button index for whatever was
+last pressed, so a mismatch shows up immediately; `BUZZ` and `ANSWER_BUTTONS` in
+`Round.gd` are the only things to change.
+
+A keyboard stands in when no buzzers are attached: `1`-`4` buzz, then
+`QWER` / `ASDF` / `ZXCV` / `UIOP` answer.

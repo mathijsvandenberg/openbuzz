@@ -1,0 +1,40 @@
+[gd_scene load_steps=3 format=3 uid="uid://c8obzround001"]
+
+[ext_resource type="Script" path="res://Round.gd" id="1_round"]
+
+[sub_resource type="StyleBoxFlat" id="Bar_1"]
+bg_color = Color(0.11, 0.11, 0.13, 1)
+
+[node name="Round" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_round")
+
+[node name="RoundCanvas" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_bottom = -34.0
+
+[node name="Bar" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -34.0
+theme_override_styles/panel = SubResource("Bar_1")
+
+[node name="RoundStatus" type="Label" parent="Bar"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.76, 0.78, 0.84, 1)
+theme_override_font_sizes/font_size = 12
+text = "  "
+
+[node name="Audio" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true

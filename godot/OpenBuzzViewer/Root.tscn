@@ -1,8 +1,9 @@
-[gd_scene load_steps=4 format=3 uid="uid://c8obzroot001"]
+[gd_scene load_steps=5 format=3 uid="uid://c8obzroot001"]
 
 [ext_resource type="Script" path="res://Root.gd" id="0_root"]
 [ext_resource type="PackedScene" path="res://Main.tscn" id="1_models"]
 [ext_resource type="PackedScene" path="res://A2d.tscn" id="2_a2d"]
+[ext_resource type="PackedScene" path="res://Round.tscn" id="3_round"]
 
 [node name="Root" type="TabContainer"]
 anchors_preset = 15
@@ -15,5 +16,9 @@ script = ExtResource("0_root")
 layout_mode = 2
 
 [node name="2D layer" parent="." instance=ExtResource("2_a2d")]
+visible = false
+layout_mode = 2
+
+[node name="Round" parent="." instance=ExtResource("3_round")]
 visible = false
 layout_mode = 2

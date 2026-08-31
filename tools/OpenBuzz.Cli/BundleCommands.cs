@@ -1,5 +1,6 @@
 using System.Text.Json;
 using OpenBuzz.Animation;
+using OpenBuzz.Quiz;
 using OpenBuzz.Graphics;
 
 namespace OpenBuzz.Cli;
@@ -16,7 +17,7 @@ public static class BundleCommands
 {
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
-    public static int Run(string extracted, string outDir)
+    public static int Run(string extracted, string outDir, string locale, int limit)
     {
         Directory.CreateDirectory(outDir);
 
@@ -24,8 +25,10 @@ public static class BundleCommands
         int fonts = Fonts(Path.Combine(extracted, "RWStream", "Font.rp2"), outDir);
         int strings = Strings(extracted, outDir);
         int scenes = Scenes(Path.Combine(extracted, "a2d"), outDir);
+        int questions = Quiz(extracted, outDir, locale, limit);
 
-        Console.WriteLine($"Bundled {atlases} atlases, {fonts} fonts, {strings} strings, {scenes} scenes to {outDir}");
+        Console.WriteLine($"Bundled {atlases} atlases, {fonts} fonts, {strings} strings, " +
+                          $"{scenes} scenes, {questions} questions to {outDir}");
         return 0;
     }
 
@@ -153,6 +156,50 @@ public static class BundleCommands
 
         File.WriteAllText(Path.Combine(outDir, "text.json"), JsonSerializer.Serialize(resolved, Json));
         return resolved.Count;
+    }
+
+    /// <summary>
+    /// Questions with their strings already resolved, paired with the clip the
+    /// song table names, so the engine needs neither the string table nor the
+    /// pool format.
+    /// </summary>
+    private static int Quiz(string extracted, string outDir, string locale, int limit)
+    {
+        QuizBank bank;
+        SongTable songs;
+        try
+        {
+            bank = QuizBank.Load(extracted, locale);
+            songs = SongTable.Load(Path.Combine(extracted, "BM1", "Rounds", locale, "rri.dat"));
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"  !! quiz: {ex.Message}");
+            return 0;
+        }
+
+        var wavDir = Path.Combine(extracted, "wav");
+        var available = Directory.Exists(wavDir)
+            ? Directory.GetFiles(wavDir, "*.wav").Select(Path.GetFileNameWithoutExtension).ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : [];
+
+        var result = new List<object>();
+        foreach (var q in bank.Resolve(QuizBank.MasterPool))
+        {
+            if (!songs.TryGet(q.SongId, out var song)) continue;
+
+            // Only questions whose clip has been decoded are playable.
+            if (available.Count > 0 && !available.Contains(song.Clip)) continue;
+
+            int correct = q.Options.ToList().IndexOf(q.CorrectAnswer);
+            if (correct < 0) continue;
+
+            result.Add(new { id = q.Id, question = q.Question, options = q.Options, correct, clip = song.Clip });
+            if (result.Count >= limit) break;
+        }
+
+        File.WriteAllText(Path.Combine(outDir, "quiz.json"), JsonSerializer.Serialize(result, Json));
+        return result.Count;
     }
 
     /// The A2D timelines, copied as they are.
