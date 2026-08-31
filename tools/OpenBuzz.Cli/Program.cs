@@ -69,6 +69,9 @@ try
 
                 "textures" => RwCommands.Textures(inDir, Opt(args, "--out") ?? Path.Combine(defaultExtract, "rwpng")),
 
+                "texinfo" => RwTexInfo.Run(Path.Combine(defaultExtract, "Textures"), inDir,
+                                 int.Parse(Opt(args, "--limit") ?? "8")),
+
                 _ => Fail($"unknown rw subcommand '{sub}'"),
 
             };

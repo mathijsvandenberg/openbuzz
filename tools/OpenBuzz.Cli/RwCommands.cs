@@ -79,6 +79,11 @@ public static class RwCommands
                 {
                     var tex = Ps2Texture.Parse(payload, $"{stream}_{index}");
                     var name = string.IsNullOrWhiteSpace(tex.Name) ? $"{stream}_{index}" : tex.Name;
+
+                    // A few textures are named with the extension already on
+                    // them, which would otherwise write `Font__UnivB26.png.png`.
+                    if (name.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
+
                     PngWriter.Write(Path.Combine(outDir, $"{stream}__{name}.png"), tex.ToRgba(), tex.Width, tex.Height);
                     written++;
                 }

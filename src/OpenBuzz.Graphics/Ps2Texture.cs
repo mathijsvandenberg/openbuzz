@@ -12,6 +12,12 @@ namespace OpenBuzz.Graphics;
 /// pixels or CLUT. In librw that shows up as
 /// `read8(raster->palette - 0x50, paletteSize)`.
 ///
+/// The payload is located by reading forward from the raster struct, never by
+/// measuring back from the end of the buffer. A standalone `.tex` stops right
+/// after the palette so both agree, but a TEXTURENATIVE embedded in an `.rp2`
+/// has a trailing EXTENSION chunk - and an end-anchor then lands 28 bytes late
+/// in every one of the 445.
+///
 /// This code originally inferred the payload location instead, taking the CLUT
 /// as the last 1024 bytes and the indices as the W*H bytes before it. The
 /// arithmetic appeared to check out - every file is `W*H + 1024 + ~332` - but
@@ -69,7 +75,7 @@ public sealed class Ps2Texture
 
         // The files begin mid-tree: STRUCT("PS2"), STRING(name), STRING(mask),
         // STRUCT(raster info), then the pixel payload.
-        int stringsSeen = 0;
+        int stringsSeen = 0, rasterEnd = 0;
         foreach (var chunk in RwChunk.Walk(data, 0, data.Length))
         {
             switch (chunk.Type)
@@ -101,6 +107,7 @@ public sealed class Ps2Texture
                     tex0 = BinaryPrimitives.ReadUInt64LittleEndian(data.AsSpan(o + 0x10));
                     pixelSize = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o + 0x30));
                     paletteSize = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(o + 0x34));
+                    rasterEnd = o + 0x40;
                     break;
                 }
             }
@@ -112,12 +119,18 @@ public sealed class Ps2Texture
         int paletteEntries = depth == 8 ? 256 : 16;
         int indexBytes = depth == 8 ? width * height : width * height / 2;
 
-        // Both payload blocks carry an 0x50-byte GIF header. Taking the pixels
-        // as "the W*H bytes before the palette" lands 80 bytes early - which is
-        // what made every decode structurally displaced no matter how the
-        // swizzle was modelled.
-        int paletteBlock = data.Length - paletteSize;
-        int pixelBlock = paletteBlock - pixelSize;
+        // The payload is read sequentially, the way librw reads it: a chunk
+        // header follows the raster struct, and the pixel block starts at its
+        // data offset with the palette block immediately after.
+        //
+        // Anchoring at the end of the buffer instead only ever worked by
+        // coincidence. A standalone `.tex` stops right after the palette, so
+        // the two agree; a TEXTURENATIVE embedded in an `.rp2` carries a
+        // trailing EXTENSION chunk, and the end-anchor then lands 28 bytes late
+        // in all 445 of them.
+        var payload = RwChunk.Read(data, rasterEnd);
+        int pixelBlock = payload.DataOffset;
+        int paletteBlock = pixelBlock + pixelSize;
 
         if (pixelBlock < 0 || paletteBlock + BlockHeader + paletteEntries * 4 > data.Length)
             throw new InvalidDataException($"{fallbackName}: payload sizes do not fit the file.");
