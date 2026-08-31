@@ -1,4 +1,4 @@
-# `.rp2` â€” RenderWare streams
+# `.rp2` - RenderWare streams
 
 143 files under `RWStream/`, holding the characters, costumes, animations,
 prizes, studio set, cameras and lights. They are ordinary RenderWare streams,
@@ -12,7 +12,7 @@ so the chunk ids come from librw's `src/rwbase.h` rather than guesswork.
 
 | Kind | Contents |
 |---|---|
-| `<Name>Costume01..03` | 1 texture, 3 clumps, 6â€“9 geometries â€” a character in one outfit |
+| `<Name>Costume01..03` | 1 texture, 3 clumps, 6-9 geometries - a character in one outfit |
 | `<Name>Animations` | 13 `ANIMANIMATION` chunks, no geometry |
 | `<Name>WinAnimation` | 3 `ANIMANIMATION` chunks |
 | `Prize01..29` | props |
@@ -42,7 +42,7 @@ CLUMP
 `HANIM` on the frames means the characters are **skinned with a bone
 hierarchy**, and the separate `*Animations.rp2` files supply the clips.
 
-## Textures â€” done
+## Textures - done
 
 The `TEXTURENATIVE` payloads are laid out exactly like the standalone `.tex`
 files, so the same decoder reads them with no changes. All 445 extract
@@ -58,7 +58,7 @@ They come out under their in-game names, e.g.
 `obz-tex.exe` browses the result - both this set and the standalone `.tex`
 one - as a list or a contact sheet, with alpha shown against a checkerboard.
 
-## Geometry â€” not started
+## Geometry - not started
 
 `GEOMETRY` chunks on PS2 do not hold plain vertex arrays. The real data sits in
 an `EXTENSION -> NATIVEDATA` chunk as **VU1 DMA chains**: packets of vertex,
@@ -69,7 +69,7 @@ VIF unpack commands, with the vertex format varying per mesh.
 librw implements this in `src/ps2/ps2raster.cpp`'s geometry side and in
 `rwps2.cpp`, and rwtools has an independent reader in `src/ps2native.cpp`
 (`Geometry::readPs2NativeData`) that walks exactly these section-A/section-B
-chains. Both are worth diffing before writing anything â€” the texture work made
+chains. Both are worth diffing before writing anything - the texture work made
 the cost of not doing that very clear.
 
 ## Tools
