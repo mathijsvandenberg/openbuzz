@@ -79,6 +79,10 @@ try
         }
 
 
+        case "bundle":
+            return BundleCommands.Run(defaultExtract,
+                       Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d"));
+
         case "model":
         {
             var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "list";

@@ -27,19 +27,7 @@ var _pitch := -0.12
 var _zoom := 1.0
 var _dragging := false
 
-## Set by --shot <file>, which captures the view and exits. Kept so the build
-## can be checked without a person having to look at a window.
-var _shot_path := ""
-var _shot_delay := 0
-
-
 func _ready() -> void:
-	var args := OS.get_cmdline_user_args()
-	var at := args.find("--shot")
-	if at >= 0 and at + 1 < args.size():
-		_shot_path = args[at + 1]
-		_shot_delay = 30
-
 	var dir := _find_models_dir()
 	if dir.is_empty():
 		_status.text = "Could not find extracted/models. Run 'obz model export' first."
@@ -176,15 +164,6 @@ func _frame_model(meshes: Array[Node]) -> void:
 
 
 func _process(_delta: float) -> void:
-	if not _shot_path.is_empty():
-		_shot_delay -= 1
-		if _shot_delay == 0:
-			await RenderingServer.frame_post_draw
-			var image := get_viewport().get_texture().get_image()
-			image.save_png(_shot_path)
-			print("wrote ", _shot_path)
-			get_tree().quit()
-
 	var distance := _radius * 2.6 * _zoom
 	var direction := Vector3(
 		sin(_yaw) * cos(_pitch), sin(-_pitch) + CAMERA_HEIGHT, cos(_yaw) * cos(_pitch)).normalized()

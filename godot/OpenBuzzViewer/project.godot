@@ -4,7 +4,7 @@ config_version=5
 
 config/name="OpenBuzz Model Viewer"
 config/description="Views the models and animations extracted from a Buzz! disc."
-run/main_scene="res://Main.tscn"
+run/main_scene="res://Root.tscn"
 config/features=PackedStringArray("4.4", "Forward Plus")
 
 [display]
