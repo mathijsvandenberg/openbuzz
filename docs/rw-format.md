@@ -210,8 +210,20 @@ multiplies column vectors while RenderWare stores a row-major basis and
 multiplies row vectors, so the RenderWare rows become the glTF columns and the
 layout maps across directly.
 
-Verified by reading the exported `.glb` back and playing it: the characters
-stay intact through the clip and move as people.
+Two details the format forces:
+
+- **A joint an animation targets must not carry a `matrix`.** Joints are written
+  as translation and rotation instead, decomposed from the RenderWare basis.
+- **One skin per mesh, sharing the joints.** Inverse-bind arrays are not
+  interchangeable between geometries: a part bound to a single bone has
+  meaningful entries only for that bone. Putting every mesh on one skin lands
+  those parts somewhere else - the head ends up inside the chest.
+
+A costume also ships the same meshes three times, once plain and twice native,
+in three clumps; the export takes the first clump so the copies do not stack.
+
+Verified in Blender 4.5, not just against a reading of the spec: the file
+imports with an armature, one action per clip, and the character dances.
 
 ## Not started
 

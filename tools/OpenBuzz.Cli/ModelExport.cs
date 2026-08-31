@@ -25,15 +25,28 @@ public static class ModelExport
             try
             {
             var data = File.ReadAllBytes(path);
-            var geometries = RwGeometry.LoadAll(data).Where(g => g.Positions.Length > 0).ToList();
+            var tree = RwStream.Parse(data);
+
+            // A costume ships the same meshes three times over - once as plain
+            // geometry and twice more as PS2 native - in three clumps. Exporting
+            // all of them just stacks identical bodies on top of each other, so
+            // take the first clump that has usable geometry.
+            var geometries = Clumps(tree)
+                .Select(c => RwStream.Flatten([c])
+                                     .Where(n => n.Id == RwId.Geometry)
+                                     .Select(n => RwGeometry.Parse(data, n))
+                                     .Where(g => g.Positions.Length > 0)
+                                     .ToList())
+                .FirstOrDefault(list => list.Count > 0)
+                ?? RwGeometry.LoadAll(data).Where(g => g.Positions.Length > 0).ToList();
+
             if (geometries.Count == 0) continue;
 
             var glb = new GlbWriter();
             var textures = EmbedTextures(glb, data);
             var materials = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
-            var nodes = RwStream.Flatten(RwStream.Parse(data)).ToList();
-            var frameList = nodes.FirstOrDefault(n => n.Id == RwId.FrameList);
+            var frameList = RwStream.Flatten(tree).FirstOrDefault(n => n.Id == RwId.FrameList);
             var skeleton = frameList is null ? null : RwSkeleton.Parse(data, frameList);
 
             int[] joints = [];
@@ -44,9 +57,7 @@ public static class ModelExport
             // part hanging off a single bone ships a full-length inverse-bind
             // array whose other entries are meaningless.
             var skinned = skeleton is null ? null
-                : geometries.Where(g => g.UsedBones > 1 && g.InverseBind.Length >= skeleton.BoneCount * 16)
-                            .OrderByDescending(g => g.UsedBones)
-                            .FirstOrDefault();
+                : geometries.FirstOrDefault(g => g.InverseBind.Length >= skeleton.BoneCount * 16);
 
             if (skeleton is { BoneCount: > 0 } && skinned is not null)
             {
@@ -57,7 +68,7 @@ public static class ModelExport
                     locals[b] = [.. frame.Matrix, .. frame.Translation];
                 }
 
-                joints = glb.AddSkeleton(skeleton.BoneParents, locals, skinned.InverseBind);
+                joints = glb.AddSkeleton(skeleton.BoneParents, locals);
                 rigged++;
             }
 
@@ -77,12 +88,17 @@ public static class ModelExport
                     list.Add(t.A); list.Add(t.B); list.Add(t.C);
                 }
 
+                // Every mesh gets its own skin, built from its own inverse
+                // binds, because those arrays are only meaningful for the bones
+                // that mesh actually uses.
                 bool canSkin = joints.Length > 0 &&
-                               geometry.BoneIndices.Length == geometry.Positions.Length / 3 * 4;
+                               geometry.BoneIndices.Length == geometry.Positions.Length / 3 * 4 &&
+                               geometry.InverseBind.Length >= joints.Length * 16;
 
                 glb.AddMesh($"mesh{index}", geometry.Positions, geometry.Normals, geometry.TexCoords, groups,
                             canSkin ? Clamp(geometry.BoneIndices, joints.Length) : null,
-                            canSkin ? geometry.Weights : null);
+                            canSkin ? geometry.Weights : null,
+                            canSkin ? glb.AddSkin(joints, geometry.InverseBind) : null);
             }
 
             if (joints.Length > 0)
@@ -100,6 +116,9 @@ public static class ModelExport
         Console.WriteLine($"Wrote {written} models to {outDir}; {rigged} rigged, {animated} clips");
         return 0;
     }
+
+    private static List<RwNode> Clumps(List<RwNode> tree) =>
+        [.. RwStream.Flatten(tree).Where(n => n.Id == RwId.Clump)];
 
     /// Bone indices out of range would make a viewer reject the file.
     private static byte[] Clamp(byte[] indices, int bones)

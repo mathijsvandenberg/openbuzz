@@ -26,7 +26,7 @@ public sealed class GlbWriter
     private readonly List<object> _images = [];
     private readonly List<object> _skins = [];
     private readonly List<object> _animations = [];
-    private int? _skinForMeshes;
+    private int _skeletonRoot;
 
     /// Embeds a PNG and returns its texture index.
     public int AddTexture(byte[] png, string name)
@@ -57,7 +57,7 @@ public sealed class GlbWriter
     /// RenderWare rows become the glTF columns and the layout maps across
     /// directly once the padding is replaced by a proper bottom row.
     /// </summary>
-    public int[] AddSkeleton(int[] parents, float[][] localMatrices, float[] inverseBind)
+    public int[] AddSkeleton(int[] parents, float[][] localMatrices)
     {
         int bones = parents.Length;
         int first = _nodes.Count;
@@ -70,23 +70,36 @@ public sealed class GlbWriter
         for (int b = 0; b < bones; b++)
         {
             var m = localMatrices[b];
+
+            // Joints are given translation and rotation rather than a matrix:
+            // the spec forbids a matrix on any node an animation targets, and
+            // every joint here is targeted.
             var node = new Dictionary<string, object>
             {
                 ["name"] = $"bone{b}",
-                ["matrix"] = new float[]
-                {
-                    m[0], m[1], m[2], 0,
-                    m[3], m[4], m[5], 0,
-                    m[6], m[7], m[8], 0,
-                    m[9], m[10], m[11], 1,
-                },
+                ["translation"] = new[] { m[9], m[10], m[11] },
+                ["rotation"] = ToQuaternion(m),
             };
             if (children[b].Count > 0) node["children"] = children[b];
             _nodes.Add(node);
         }
 
-        var matrices = new float[bones * 16];
-        for (int b = 0; b < bones; b++)
+        _skeletonRoot = first + Math.Max(0, Array.IndexOf(parents, -1));
+        return [.. Enumerable.Range(first, bones)];
+    }
+
+    /// <summary>
+    /// One skin per mesh, sharing the joints.
+    ///
+    /// Each geometry ships its own inverse-bind array, and they are not
+    /// interchangeable: a part bound to one bone has meaningful entries only
+    /// for that bone. Forcing every mesh onto a single skin lands those parts
+    /// somewhere else entirely - a head, for instance, ends up inside the chest.
+    /// </summary>
+    public int AddSkin(int[] joints, float[] inverseBind)
+    {
+        var matrices = new float[joints.Length * 16];
+        for (int b = 0; b < joints.Length; b++)
         {
             for (int r = 0; r < 3; r++)
                 for (int c = 0; c < 3; c++)
@@ -96,15 +109,63 @@ public sealed class GlbWriter
             matrices[b * 16 + 15] = 1f;
         }
 
-        _skins.Add(new
-        {
-            joints = Enumerable.Range(first, bones).ToArray(),
-            inverseBindMatrices = AddMat4(matrices),
-            skeleton = first + Math.Max(0, Array.IndexOf(parents, -1)),
-        });
+        _skins.Add(new { joints, inverseBindMatrices = AddMat4(matrices), skeleton = _skeletonRoot });
+        return _skins.Count - 1;
+    }
 
-        _skinForMeshes = _skins.Count - 1;
-        return [.. Enumerable.Range(first, bones)];
+    /// <summary>
+    /// Quaternion for a RenderWare 3x3 basis, in the convention glTF wants.
+    ///
+    /// RenderWare stores the basis row-major and multiplies row vectors, so its
+    /// row c is the glTF column c, and the rotation matrix glTF reads is the
+    /// transpose - which is what the indexing below accounts for.
+    /// </summary>
+    private static float[] ToQuaternion(float[] rw)
+    {
+        // M[r][c] == rw[c * 3 + r]
+        float m00 = rw[0], m10 = rw[1], m20 = rw[2];
+        float m01 = rw[3], m11 = rw[4], m21 = rw[5];
+        float m02 = rw[6], m12 = rw[7], m22 = rw[8];
+
+        float trace = m00 + m11 + m22;
+        float x, y, z, w;
+
+        if (trace > 0)
+        {
+            float s = MathF.Sqrt(trace + 1f) * 2f;
+            w = 0.25f * s;
+            x = (m21 - m12) / s;
+            y = (m02 - m20) / s;
+            z = (m10 - m01) / s;
+        }
+        else if (m00 > m11 && m00 > m22)
+        {
+            float s = MathF.Sqrt(1f + m00 - m11 - m22) * 2f;
+            w = (m21 - m12) / s;
+            x = 0.25f * s;
+            y = (m01 + m10) / s;
+            z = (m02 + m20) / s;
+        }
+        else if (m11 > m22)
+        {
+            float s = MathF.Sqrt(1f + m11 - m00 - m22) * 2f;
+            w = (m02 - m20) / s;
+            x = (m01 + m10) / s;
+            y = 0.25f * s;
+            z = (m12 + m21) / s;
+        }
+        else
+        {
+            float s = MathF.Sqrt(1f + m22 - m00 - m11) * 2f;
+            w = (m10 - m01) / s;
+            x = (m02 + m20) / s;
+            y = (m12 + m21) / s;
+            z = 0.25f * s;
+        }
+
+        float length = MathF.Sqrt(x * x + y * y + z * z + w * w);
+        if (length <= 0) return [0, 0, 0, 1];
+        return [x / length, y / length, z / length, w / length];
     }
 
     /// Adds one clip; times, rotations and translations are given per bone.
@@ -135,14 +196,14 @@ public sealed class GlbWriter
     /// </summary>
     public void AddMesh(string name, float[] positions, float[] normals, float[] uvs,
                         IReadOnlyDictionary<int, List<int>> groups,
-                        byte[]? joints = null, float[]? weights = null)
+                        byte[]? joints = null, float[]? weights = null, int? skin = null)
     {
         int vertices = positions.Length / 3;
         var attributes = new Dictionary<string, int> { ["POSITION"] = AddVec3(positions, bounds: true) };
         if (normals.Length == positions.Length) attributes["NORMAL"] = AddVec3(normals, bounds: false);
         if (uvs.Length == vertices * 2) attributes["TEXCOORD_0"] = AddVec2(uvs);
 
-        bool skinned = joints is not null && weights is not null &&
+        bool skinned = joints is not null && weights is not null && skin is not null &&
                        joints.Length == vertices * 4 && weights.Length == vertices * 4;
         if (skinned)
         {
@@ -161,8 +222,8 @@ public sealed class GlbWriter
 
         _meshes.Add(new { name, primitives });
 
-        if (skinned && _skinForMeshes is { } skin)
-            _nodes.Add(new { name, mesh = _meshes.Count - 1, skin });
+        if (skinned)
+            _nodes.Add(new { name, mesh = _meshes.Count - 1, skin = skin!.Value });
         else
             _nodes.Add(new { name, mesh = _meshes.Count - 1 });
     }
