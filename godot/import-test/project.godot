@@ -1,0 +1,14 @@
+﻿config_version=5
+
+[application]
+
+config/name="glb import test"
+config/features=PackedStringArray("4.4", "Forward Plus")
+
+run/main_scene="res://main.tscn"
+
+[display]
+
+window/size/viewport_width=420
+window/size/viewport_height=560
+

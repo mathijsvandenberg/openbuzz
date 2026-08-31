@@ -222,8 +222,15 @@ Two details the format forces:
 A costume also ships the same meshes three times, once plain and twice native,
 in three clumps; the export takes the first clump so the copies do not stack.
 
-Verified in Blender 4.5, not just against a reading of the spec: the file
-imports with an armature, one action per clip, and the character dances.
+Verified in two engines rather than against a reading of the spec.
+
+**Blender 4.5** imports it with an armature, one action per clip, and 58 of 59
+bones moving mid-clip.
+
+**Godot 4.7.2 (.NET)** imports it as a `Node3D` holding a `Skeleton3D` with the
+character bone count, two skinned `MeshInstance3D`, and an `AnimationPlayer`
+with one animation per clip - 16 for a character that has both an Animations and
+a WinAnimation stream. `godot/import-test/` repeats the check.
 
 ## Not started
 
