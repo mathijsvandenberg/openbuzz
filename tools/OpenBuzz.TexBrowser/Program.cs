@@ -25,7 +25,7 @@ internal static class Program
             return;
         }
 
-        Application.Run(new BrowserForm(entries, dir));
+        Application.Run(new BrowserForm(entries, dir, Opt(args, "--filter"), args.Contains("--sheet")));
     }
 
     private static string? Opt(string[] args, string name)

@@ -29,7 +29,7 @@ public sealed class BrowserForm : Form
     /// Where each thumbnail landed, so the sheet can be clicked.
     private readonly List<(Rectangle Cell, TextureEntry Entry)> sheetHits = [];
 
-    public BrowserForm(List<TextureEntry> entries, string extractDir)
+    public BrowserForm(List<TextureEntry> entries, string extractDir, string? initialFilter = null, bool sheet = false)
     {
         all = entries;
         shown = entries;
@@ -51,7 +51,8 @@ public sealed class BrowserForm : Form
         left.Controls.Add(list);
         left.Controls.Add(filter);
 
-        var split = new SplitContainer { Dock = DockStyle.Fill, SplitterDistance = 340, FixedPanel = FixedPanel.Panel1 };
+        var split = new SplitContainer { Dock = DockStyle.Fill, FixedPanel = FixedPanel.Panel1 };
+        split.SplitterDistance = 340;
         split.Panel1.Controls.Add(left);
         split.Panel2.Controls.Add(canvas);
 
@@ -67,6 +68,8 @@ public sealed class BrowserForm : Form
         alphaButton.CheckedChanged += (_, _) => canvas.Invalidate();
         zoom.SelectedIndexChanged += (_, _) => Refresh2();
 
+        sheetButton.Checked = sheet;
+        filter.Text = initialFilter ?? "";
         ApplyFilter();
     }
 
@@ -197,8 +200,12 @@ public sealed class BrowserForm : Form
         var old = g.Clip;
         g.SetClip(rect, CombineMode.Intersect);
 
-        g.FillRectangle(Brushes.Gainsboro, rect);
-        using var dark = new SolidBrush(Color.FromArgb(170, 170, 170));
+        // Mid grey rather than the usual near-white: most of this artwork is
+        // white glyphs and highlights carried entirely in the alpha channel,
+        // and a light checkerboard hides them completely.
+        using var light = new SolidBrush(Color.FromArgb(96, 96, 102));
+        g.FillRectangle(light, rect);
+        using var dark = new SolidBrush(Color.FromArgb(72, 72, 78));
         for (int y = rect.Top; y < rect.Bottom; y += square)
             for (int x = rect.Left; x < rect.Right; x += square)
                 if ((x - rect.Left) / square % 2 == (y - rect.Top) / square % 2)

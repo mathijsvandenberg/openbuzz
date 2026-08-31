@@ -155,7 +155,7 @@ public sealed class Ps2Texture
 
         var indices = depth == 8
             ? (swizzled ? RwSwizzle.UnswizzlePsmt8(raw, width, height) : raw.ToArray())
-            : Ps2Swizzle.UnswizzlePsmt4(raw, width, height);
+            : RwSwizzle.UnswizzlePsmt4(raw, width, height);
 
         return new Ps2Texture
         {

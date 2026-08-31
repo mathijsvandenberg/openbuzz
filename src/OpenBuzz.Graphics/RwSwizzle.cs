@@ -79,9 +79,57 @@ public static class RwSwizzle
                 }
         }
 
+        return Crop(dst, w, h, width, height);
+    }
+
+    /// <summary>
+    /// Un-swizzles 4-bit indexed data, expanding to one byte per pixel so
+    /// callers only deal with one index format.
+    ///
+    /// It is the same <see cref="Swizzle"/> as the 8-bit case - librw runs both
+    /// through it - with every address counted in nibbles rather than bytes, and
+    /// a minimum transfer size of 32x4 instead of 16x4.
+    /// </summary>
+    public static byte[] UnswizzlePsmt4(ReadOnlySpan<byte> src, int width, int height)
+    {
+        int w = Math.Max(width, 32);
+        int h = Math.Max(height, 4);
+
+        int logw = 0;
+        for (int i = 1; i < w; i *= 2) logw++;
+        uint mask = (1u << (logw + 2)) - 1;
+
+        var dst = new byte[w * h];
+
+        // Four rows of w nibbles each: 2*w bytes.
+        var group = new byte[2 * w];
+
+        for (int y = 0; y + 4 <= h; y += 4)
+        {
+            int baseOffset = y * w / 2;
+            for (int i = 0; i < group.Length; i++)
+            {
+                int from = baseOffset + i;
+                group[i] = from < src.Length ? src[from] : (byte)0;
+            }
+
+            for (int i = 0; i < 4; i++)
+                for (int x = 0; x < w; x++)
+                {
+                    uint s = Swizzle((uint)x, (uint)(y + i), logw) & mask;
+                    byte packed = s >> 1 < group.Length ? group[s >> 1] : (byte)0;
+                    dst[(y + i) * w + x] = (byte)((s & 1) != 0 ? packed >> 4 : packed & 0x0F);
+                }
+        }
+
+        return Crop(dst, w, h, width, height);
+    }
+
+    /// Crops back if the buffer was widened to the minimum transfer size.
+    private static byte[] Crop(byte[] dst, int w, int h, int width, int height)
+    {
         if (w == width && h == height) return dst;
 
-        // Crop back if the buffer was widened to the minimum transfer size.
         var cropped = new byte[width * height];
         for (int y = 0; y < height; y++)
             Array.Copy(dst, y * w, cropped, y * width, Math.Min(width, w));
