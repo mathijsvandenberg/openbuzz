@@ -24,6 +24,9 @@ public sealed class GlbWriter
     private readonly List<object> _materials = [];
     private readonly List<object> _textures = [];
     private readonly List<object> _images = [];
+    private readonly List<object> _skins = [];
+    private readonly List<object> _animations = [];
+    private int? _skinForMeshes;
 
     /// Embeds a PNG and returns its texture index.
     public int AddTexture(byte[] png, string name)
@@ -46,15 +49,106 @@ public sealed class GlbWriter
     }
 
     /// <summary>
+    /// Adds the joint nodes and the skin they belong to. Returns the node index
+    /// of each joint, in bone order.
+    ///
+    /// glTF stores matrices column-major and multiplies column vectors;
+    /// RenderWare stores a row-major basis and multiplies row vectors, so the
+    /// RenderWare rows become the glTF columns and the layout maps across
+    /// directly once the padding is replaced by a proper bottom row.
+    /// </summary>
+    public int[] AddSkeleton(int[] parents, float[][] localMatrices, float[] inverseBind)
+    {
+        int bones = parents.Length;
+        int first = _nodes.Count;
+
+        var children = new List<int>[bones];
+        for (int b = 0; b < bones; b++) children[b] = [];
+        for (int b = 0; b < bones; b++)
+            if (parents[b] >= 0) children[parents[b]].Add(first + b);
+
+        for (int b = 0; b < bones; b++)
+        {
+            var m = localMatrices[b];
+            var node = new Dictionary<string, object>
+            {
+                ["name"] = $"bone{b}",
+                ["matrix"] = new float[]
+                {
+                    m[0], m[1], m[2], 0,
+                    m[3], m[4], m[5], 0,
+                    m[6], m[7], m[8], 0,
+                    m[9], m[10], m[11], 1,
+                },
+            };
+            if (children[b].Count > 0) node["children"] = children[b];
+            _nodes.Add(node);
+        }
+
+        var matrices = new float[bones * 16];
+        for (int b = 0; b < bones; b++)
+        {
+            for (int r = 0; r < 3; r++)
+                for (int c = 0; c < 3; c++)
+                    matrices[b * 16 + r * 4 + c] = inverseBind[b * 16 + r * 4 + c];
+
+            for (int c = 0; c < 3; c++) matrices[b * 16 + 12 + c] = inverseBind[b * 16 + 12 + c];
+            matrices[b * 16 + 15] = 1f;
+        }
+
+        _skins.Add(new
+        {
+            joints = Enumerable.Range(first, bones).ToArray(),
+            inverseBindMatrices = AddMat4(matrices),
+            skeleton = first + Math.Max(0, Array.IndexOf(parents, -1)),
+        });
+
+        _skinForMeshes = _skins.Count - 1;
+        return [.. Enumerable.Range(first, bones)];
+    }
+
+    /// Adds one clip; times, rotations and translations are given per bone.
+    public void AddAnimation(string name, int[] jointNodes, float[][] times,
+                             float[][] rotations, float[][] translations)
+    {
+        var channels = new List<object>();
+        var samplers = new List<object>();
+
+        for (int b = 0; b < jointNodes.Length; b++)
+        {
+            if (times[b].Length == 0) continue;
+            int input = AddScalarFloat(times[b]);
+
+            samplers.Add(new { input, output = AddVec4(rotations[b]), interpolation = "LINEAR" });
+            channels.Add(new { sampler = samplers.Count - 1, target = new { node = jointNodes[b], path = "rotation" } });
+
+            samplers.Add(new { input, output = AddVec3(translations[b], bounds: false), interpolation = "LINEAR" });
+            channels.Add(new { sampler = samplers.Count - 1, target = new { node = jointNodes[b], path = "translation" } });
+        }
+
+        if (channels.Count > 0) _animations.Add(new { name, channels, samplers });
+    }
+
+    /// <summary>
     /// Adds a mesh. <paramref name="groups"/> maps a material index to the
     /// triangle indices that use it, so each becomes one primitive.
     /// </summary>
     public void AddMesh(string name, float[] positions, float[] normals, float[] uvs,
-                        IReadOnlyDictionary<int, List<int>> groups)
+                        IReadOnlyDictionary<int, List<int>> groups,
+                        byte[]? joints = null, float[]? weights = null)
     {
+        int vertices = positions.Length / 3;
         var attributes = new Dictionary<string, int> { ["POSITION"] = AddVec3(positions, bounds: true) };
         if (normals.Length == positions.Length) attributes["NORMAL"] = AddVec3(normals, bounds: false);
-        if (uvs.Length == positions.Length / 3 * 2) attributes["TEXCOORD_0"] = AddVec2(uvs);
+        if (uvs.Length == vertices * 2) attributes["TEXCOORD_0"] = AddVec2(uvs);
+
+        bool skinned = joints is not null && weights is not null &&
+                       joints.Length == vertices * 4 && weights.Length == vertices * 4;
+        if (skinned)
+        {
+            attributes["JOINTS_0"] = AddJoints(joints!);
+            attributes["WEIGHTS_0"] = AddVec4(Normalise(weights!));
+        }
 
         var primitives = new List<object>();
         foreach (var (material, indices) in groups)
@@ -66,7 +160,11 @@ public sealed class GlbWriter
         if (primitives.Count == 0) return;
 
         _meshes.Add(new { name, primitives });
-        _nodes.Add(new { name, mesh = _meshes.Count - 1 });
+
+        if (skinned && _skinForMeshes is { } skin)
+            _nodes.Add(new { name, mesh = _meshes.Count - 1, skin });
+        else
+            _nodes.Add(new { name, mesh = _meshes.Count - 1 });
     }
 
     public void Write(string path)
@@ -75,7 +173,7 @@ public sealed class GlbWriter
         {
             ["asset"] = new { version = "2.0", generator = "OpenBuzz" },
             ["scene"] = 0,
-            ["scenes"] = new[] { new { nodes = Enumerable.Range(0, _nodes.Count).ToArray() } },
+            ["scenes"] = new[] { new { nodes = RootNodes() } },
             ["nodes"] = _nodes,
             ["meshes"] = _meshes,
             ["accessors"] = _accessors,
@@ -83,6 +181,8 @@ public sealed class GlbWriter
             ["buffers"] = new[] { new { byteLength = _bin.Length } },
         };
 
+        if (_skins.Count > 0) gltf["skins"] = _skins;
+        if (_animations.Count > 0) gltf["animations"] = _animations;
         if (_materials.Count > 0) gltf["materials"] = _materials;
         if (_textures.Count > 0)
         {
@@ -100,6 +200,18 @@ public sealed class GlbWriter
         w.Write((uint)(12 + 8 + json.Length + 8 + bin.Length));
         w.Write((uint)json.Length); w.Write(JsonChunk); w.Write(json);
         w.Write((uint)bin.Length); w.Write(BinChunk); w.Write(bin);
+    }
+
+    /// Only nodes that are not a child of another; listing a joint as a scene root as
+    /// well as a child applies its parent transform twice in some viewers.
+    private int[] RootNodes()
+    {
+        var child = new HashSet<int>();
+        foreach (var node in _nodes)
+            if (node is Dictionary<string, object> d && d.TryGetValue("children", out var kids) && kids is List<int> list)
+                child.UnionWith(list);
+
+        return [.. Enumerable.Range(0, _nodes.Count).Where(i => !child.Contains(i))];
     }
 
     private static byte[] Pad(byte[] data, byte with)
@@ -162,6 +274,59 @@ public sealed class GlbWriter
         Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
         int view = AddView(bytes, 34962);
         _accessors.Add(new { bufferView = view, componentType = 5126, count = values.Length / 2, type = "VEC2" });
+        return _accessors.Count - 1;
+    }
+
+    /// Weights have to sum to one per vertex or viewers shrink the mesh.
+    private static float[] Normalise(float[] weights)
+    {
+        var result = (float[])weights.Clone();
+        for (int v = 0; v + 3 < result.Length; v += 4)
+        {
+            float sum = result[v] + result[v + 1] + result[v + 2] + result[v + 3];
+            if (sum <= 0) { result[v] = 1f; continue; }
+            for (int k = 0; k < 4; k++) result[v + k] /= sum;
+        }
+        return result;
+    }
+
+    private int AddJoints(byte[] joints)
+    {
+        int view = AddView(joints, 34962);
+        _accessors.Add(new { bufferView = view, componentType = 5121, count = joints.Length / 4, type = "VEC4" });
+        return _accessors.Count - 1;
+    }
+
+    private int AddVec4(float[] values)
+    {
+        var bytes = new byte[values.Length * 4];
+        Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
+        int view = AddView(bytes, 34962);
+        _accessors.Add(new { bufferView = view, componentType = 5126, count = values.Length / 4, type = "VEC4" });
+        return _accessors.Count - 1;
+    }
+
+    private int AddMat4(float[] values)
+    {
+        var bytes = new byte[values.Length * 4];
+        Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
+        int view = AddView(bytes, null);
+        _accessors.Add(new { bufferView = view, componentType = 5126, count = values.Length / 16, type = "MAT4" });
+        return _accessors.Count - 1;
+    }
+
+    /// Animation inputs need min and max or some viewers reject the sampler.
+    private int AddScalarFloat(float[] values)
+    {
+        var bytes = new byte[values.Length * 4];
+        Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
+        int view = AddView(bytes, null);
+        _accessors.Add(new Dictionary<string, object>
+        {
+            ["bufferView"] = view, ["componentType"] = 5126,
+            ["count"] = values.Length, ["type"] = "SCALAR",
+            ["min"] = new[] { values.Min() }, ["max"] = new[] { values.Max() },
+        });
         return _accessors.Count - 1;
     }
 

@@ -86,7 +86,7 @@ try
             return sub switch
             {
                 "list" => ModelCommands.List(inDir),
-                "export" => ModelCommands.Export(inDir,
+                "export" => ModelExport.Run(inDir,
                                 Opt(args, "--out") ?? Path.Combine(defaultExtract, "models"),
                                 Opt(args, "--only")),
                 _ => Fail($"unknown model subcommand '{sub}'"),

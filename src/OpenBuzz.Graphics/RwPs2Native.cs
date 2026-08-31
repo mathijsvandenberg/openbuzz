@@ -29,6 +29,11 @@ public static class RwPs2Native
         public List<float> TexCoords { get; } = [];
         public List<uint> Colours { get; } = [];
 
+        /// Four weights per vertex, with the bone index packed into the low
+        /// bits of each weight's float representation.
+        public List<float> Weights { get; } = [];
+        public List<byte> BoneIndices { get; } = [];
+
         /// One triangle strip per split, in the order the splits appear.
         public List<List<int>> Strips { get; } = [];
 
@@ -263,6 +268,21 @@ public static class RwPs2Native
             case 0x6C008003:
             case 0x6C008001:                                  // skin weights and bones
                 size = 16;
+                if (!Fits(d, p, count, size)) return p;
+                for (int j = 0; j < count; j++)
+                    for (int i = 0; i < 4; i++)
+                    {
+                        uint bits = BinaryPrimitives.ReadUInt32LittleEndian(d.AsSpan(p + j * 16 + i * 4));
+                        mesh.Weights.Add(BitConverter.UInt32BitsToSingle(bits));
+
+                        // The bone index rides in the low bits of the weight,
+                        // one-based, with zero meaning "no bone". It is a byte
+                        // first and one-based second: truncating after the
+                        // subtraction instead gives nonsense indices, which
+                        // shows up as a few vertices flung across the scene.
+                        byte bone = (byte)(bits >> 2);
+                        mesh.BoneIndices.Add(bone == 0 ? (byte)0 : (byte)(bone - 1));
+                    }
                 break;
 
             default:
@@ -305,6 +325,13 @@ public static class RwPs2Native
                 case 0x6E008003:
                 case 0x6A008003:
                     Trim(mesh.Normals, 6);
+                    break;
+
+                case 0x6C008004:
+                case 0x6C008003:
+                case 0x6C008001:
+                    Trim(mesh.Weights, 8);
+                    Trim(mesh.BoneIndices, 8);
                     break;
             }
         }

@@ -50,6 +50,18 @@ public sealed class RwGeometry
     /// Texture name per material index, empty string where a material has none.
     public string[] MaterialTextures { get; init; } = [];
 
+    /// Four bone indices per vertex, empty when the geometry is not skinned.
+    public byte[] BoneIndices { get; init; } = [];
+
+    /// Four weights per vertex, matching <see cref="BoneIndices"/>.
+    public float[] Weights { get; init; } = [];
+
+    /// 16 floats per bone; empty when the geometry is not skinned.
+    public float[] InverseBind { get; init; } = [];
+
+    /// How many bones this geometry binds to; the full-body skin has the most.
+    public int UsedBones { get; init; }
+
     public static RwGeometry Parse(byte[] d, RwNode geometry)
     {
         var children = RwStream.Parse(d.AsSpan(geometry.DataOffset, geometry.Size).ToArray(), 0);
@@ -115,6 +127,8 @@ public sealed class RwGeometry
             p += vertexCount * 12;
         }
 
+        var skin = ReadSkin(d, geometry, vertexCount, native: false);
+
         var normals = Array.Empty<float>();
         if (hasNormals)
         {
@@ -134,7 +148,18 @@ public sealed class RwGeometry
             Colours = colours,
             Triangles = triangles,
             MaterialTextures = textures,
+            BoneIndices = skin?.BoneIndices ?? [],
+            Weights = skin?.Weights ?? [],
+            InverseBind = skin?.InverseBind ?? [],
+            UsedBones = skin?.UsedBones ?? 0,
         };
+    }
+
+    private static RwSkin? ReadSkin(byte[] d, RwNode geometry, int vertexCount, bool native)
+    {
+        var extension = geometry.Children.FirstOrDefault(c => c.Id == RwId.Extension);
+        var skin = extension?.Children.FirstOrDefault(c => c.Id == RwId.Skin);
+        return skin is null ? null : RwSkin.Parse(d, skin, vertexCount, native);
     }
 
     /// <summary>
@@ -153,6 +178,8 @@ public sealed class RwGeometry
         var splits = ReadBinMesh(d, binMesh);
         var mesh = RwPs2Native.Read(d, nativeData.DataOffset, nativeData.End,
                                     [.. splits.Select(m => m.Indices)], (flags & FlagPrelit) != 0, numUVs);
+
+        var nativeSkin = ReadSkin(d, geometry, 0, native: true);
 
         var triangles = new List<RwTriangle>();
         for (int i = 0; i < mesh.Strips.Count && i < splits.Count; i++)
@@ -174,6 +201,10 @@ public sealed class RwGeometry
             Colours = [.. mesh.Colours],
             Triangles = [.. triangles],
             MaterialTextures = textures,
+            BoneIndices = [.. mesh.BoneIndices],
+            Weights = [.. mesh.Weights],
+            InverseBind = nativeSkin?.InverseBind ?? [],
+            UsedBones = nativeSkin?.UsedBones ?? 0,
         };
     }
 
