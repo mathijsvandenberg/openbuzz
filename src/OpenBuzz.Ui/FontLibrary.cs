@@ -18,6 +18,13 @@ public sealed class FontLibrary : IDisposable
     public int Count => _fonts.Count;
     public IEnumerable<string> Names => _fonts.Keys;
 
+    /// <summary>
+    /// The fonts found next to the running executable, loaded once. Shared
+    /// because they are immutable and every renderer wants the same six.
+    /// </summary>
+    public static FontLibrary? Shared => _shared ??= Discover(AppContext.BaseDirectory);
+    private static FontLibrary? _shared;
+
     public BitmapFont? Get(string name) => _fonts.GetValueOrDefault(name);
 
     /// Falls back through the styles that exist in every build.

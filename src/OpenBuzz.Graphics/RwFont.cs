@@ -36,8 +36,29 @@ public sealed class RwFont
     /// The atlas this font draws from, e.g. "SynBol18.png".
     public required string TextureName { get; init; }
 
-    /// Line height in pixels at native size. Every glyph is exactly this tall.
+    /// <summary>
+    /// Line height in pixels at native size. Note this is the *interior*
+    /// height: the glyph cell is one pixel taller, and rows in the atlas are
+    /// spaced <see cref="LineStep"/> apart.
+    /// </summary>
     public required float LineHeight { get; init; }
+
+    /// <summary>
+    /// Cell height in pixels - the distance between atlas rows, and the right
+    /// spacing between lines of text.
+    ///
+    /// Every rectangle in the table sits on a half-texel, because the UVs
+    /// address texel centres: the first texel of a cell is at
+    /// <c>u0 * width - 0.5</c> and the last at <c>u1 * width - 0.5</c>, so the
+    /// cell spans one more pixel than the difference between them.
+    /// </summary>
+    public float LineStep => LineHeight + 1f;
+
+    /// <summary>
+    /// How far the pen moves for this glyph, in pixels at native size. Cells
+    /// tile the atlas exactly at this stride, so it is also the cell width.
+    /// </summary>
+    public float AdvanceOf(RwGlyph glyph) => glyph.Advance * LineHeight + 1f;
 
     public required RwGlyph[] Glyphs { get; init; }
 
@@ -74,7 +95,7 @@ public sealed class RwFont
     {
         float w = 0;
         foreach (char ch in text)
-            w += TryGetGlyph(ch, out var g) ? g.Advance * LineHeight : LineHeight * 0.25f;
+            w += TryGetGlyph(ch, out var g) ? AdvanceOf(g) : LineHeight * 0.25f;
         return w;
     }
 

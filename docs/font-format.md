@@ -66,9 +66,27 @@ f32 u0, v0, u1, v1     rectangle in the atlas, normalised
 f32 advance            in units of lineHeight
 ```
 
-`advance * lineHeight` is the glyph's pixel width exactly, and the rectangle is
-always `lineHeight` tall. There are no side bearings - spacing is baked into
-the cell.
+**The UVs address texel centres, not edges.** Every one of the 592 coordinates
+across all six fonts has a fractional part of exactly 0.5 when multiplied by the
+atlas size, so the pixel cell is
+
+```
+x0 = u0 * width  - 0.5          w = (u1 - u0) * width  + 1
+y0 = v0 * height - 0.5          h = (v1 - v0) * height + 1
+```
+
+and the pen moves `advance * lineHeight + 1` pixels, lines step
+`lineHeight + 1`. Cells tile the atlas exactly at that stride, which is how the
+convention was pinned down: consecutive glyphs on a row start exactly
+`advance + 1` apart, with no gap and no overlap.
+
+Getting this wrong is visible rather than subtle. Rounding `u0 * width`
+directly shifts each glyph by a pixel, but not all of them the same way, so the
+baseline wobbles; and advancing by `advance * lineHeight` is one pixel short per
+character, which reads as letters packed too tightly.
+
+There are no side bearings in the metrics - the blank margin is inside the cell,
+typically one to three pixels each side.
 
 ## The fonts
 
@@ -103,6 +121,14 @@ not overfitted to the Western build.
 
 Two names the scripts use - `GeneralSmall` and `Score` - are not in any of the
 three streams, so they must fall back at runtime. Not yet chased down.
+
+## Which font the A2D layer uses
+
+Text bindings in the A2D data carry a `Style`, and it is simply the font name -
+the animation data only ever uses `RoundInstructionsSmall` and
+`RoundInstructionsLarge`. So a round title such as `RulesPointsBuilderTitle`
+("Punten verdienen") draws in the face the original uses, with no mapping table
+needed.
 
 ## Rendering
 

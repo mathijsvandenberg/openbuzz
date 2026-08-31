@@ -33,10 +33,15 @@ public sealed class BitmapFont : IDisposable
         for (int i = 0; i < font.Glyphs.Length; i++)
         {
             var glyph = font.Glyphs[i];
-            int sx = (int)MathF.Round(glyph.U0 * atlas.Width);
-            int sy = (int)MathF.Round(glyph.V0 * atlas.Height);
-            int sw = (int)MathF.Round(glyph.U1 * atlas.Width) - sx;
-            int sh = (int)MathF.Round(glyph.V1 * atlas.Height) - sy;
+
+            // The UVs address texel centres, so every coordinate lands on a
+            // half-texel and the cell spans one pixel more than the difference
+            // between them. Rounding the raw products instead shifts each glyph
+            // by a pixel, inconsistently, which reads as a wobbling baseline.
+            int sx = (int)MathF.Round(glyph.U0 * atlas.Width - 0.5f);
+            int sy = (int)MathF.Round(glyph.V0 * atlas.Height - 0.5f);
+            int sw = (int)MathF.Round((glyph.U1 - glyph.U0) * atlas.Width) + 1;
+            int sh = (int)MathF.Round((glyph.V1 - glyph.V0) * atlas.Height) + 1;
 
             if (sw <= 0 || sh <= 0 || sx < 0 || sy < 0 ||
                 sx + sw > atlas.Width || sy + sh > atlas.Height) continue;
@@ -47,8 +52,11 @@ public sealed class BitmapFont : IDisposable
 
     public string Name => _font.Name;
 
-    /// Line height in pixels at scale 1. Every glyph is exactly this tall.
+    /// Line height in pixels at scale 1.
     public float LineHeight => _font.LineHeight;
+
+    /// Distance between lines of text in pixels at scale 1.
+    public float LineStep => _font.LineStep;
 
     public float Measure(string text, float scale = 1f) => _font.Measure(text) * scale;
 
@@ -82,12 +90,18 @@ public sealed class BitmapFont : IDisposable
 
             if (_glyphs[i] is { } image)
             {
-                var dest = new RectangleF(penX, y, image.Width * scale, image.Height * scale);
-                g.DrawImage(image, Round(dest), 0, 0, image.Width, image.Height,
+                // Round the position but keep the size fixed. Rounding the two
+                // edges independently would let each glyph come out a pixel
+                // wider or narrower than its neighbours.
+                var dest = new Rectangle(
+                    (int)MathF.Round(penX), (int)MathF.Round(y),
+                    (int)MathF.Round(image.Width * scale), (int)MathF.Round(image.Height * scale));
+
+                g.DrawImage(image, dest, 0, 0, image.Width, image.Height,
                             GraphicsUnit.Pixel, attributes);
             }
 
-            penX += _font.Glyphs[i].Advance * LineHeight * scale;
+            penX += _font.AdvanceOf(_font.Glyphs[i]) * scale;
         }
 
         g.InterpolationMode = saved;
@@ -103,7 +117,7 @@ public sealed class BitmapFont : IDisposable
                              float scale, Color tint, TextAlign align = TextAlign.Centre)
     {
         var lines = Wrap(text, box.Width, scale);
-        float step = LineHeight * scale * 1.15f;
+        float step = LineStep * scale;
         float y = box.Y + Math.Max(0, (box.Height - lines.Count * step) / 2f);
 
         float x = align switch
@@ -153,10 +167,6 @@ public sealed class BitmapFont : IDisposable
         float natural = Measure(text);
         return natural <= 0 ? max : Math.Min(max, width / natural);
     }
-
-    private static Rectangle Round(RectangleF r) =>
-        Rectangle.FromLTRB((int)MathF.Round(r.Left), (int)MathF.Round(r.Top),
-                           (int)MathF.Round(r.Right), (int)MathF.Round(r.Bottom));
 
     /// Multiplies the glyph's white through the tint, leaving alpha alone.
     private static ImageAttributes Tint(Color c)

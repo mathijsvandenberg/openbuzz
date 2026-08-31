@@ -40,7 +40,7 @@ public static class FontCommands
         foreach (var f in fonts)
         {
             width = Math.Max(width, (int)(f.Measure(text) * scale) + pad * 2);
-            height += (int)(f.LineHeight * scale) + pad;
+            height += (int)(f.LineStep * scale) + pad;
         }
 
         var canvas = new uint[width * height];
@@ -51,7 +51,7 @@ public static class FontCommands
         {
             if (atlases.TryGetValue(f.TextureName, out var atlas))
                 DrawText(canvas, width, height, f, atlas, text, pad, y, scale);
-            y += (int)(f.LineHeight * scale) + pad;
+            y += (int)(f.LineStep * scale) + pad;
         }
 
         Directory.CreateDirectory(Path.GetDirectoryName(outPath)!);
@@ -81,8 +81,10 @@ public static class FontCommands
         {
             if (!font.TryGetGlyph(c, out var g)) { penX += font.LineHeight * 0.25f * scale; continue; }
 
-            int sx = (int)MathF.Round(g.U0 * atlas.Width), sy = (int)MathF.Round(g.V0 * atlas.Height);
-            int sw = (int)MathF.Round(g.U1 * atlas.Width) - sx, sh = (int)MathF.Round(g.V1 * atlas.Height) - sy;
+            // UVs address texel centres; the cell is one pixel wider and
+            // taller than the difference between them.
+            int sx = (int)MathF.Round(g.U0 * atlas.Width - 0.5f), sy = (int)MathF.Round(g.V0 * atlas.Height - 0.5f);
+            int sw = (int)MathF.Round((g.U1 - g.U0) * atlas.Width) + 1, sh = (int)MathF.Round((g.V1 - g.V0) * atlas.Height) + 1;
 
             for (int dy = 0; dy < sh * scale; dy++)
                 for (int dx = 0; dx < sw * scale; dx++)
@@ -96,7 +98,7 @@ public static class FontCommands
                     canvas[py * cw + px] = Blend(canvas[py * cw + px], pixels[ty * atlas.Width + tx]);
                 }
 
-            penX += g.Advance * font.LineHeight * scale;
+            penX += font.AdvanceOf(g) * scale;
         }
     }
 

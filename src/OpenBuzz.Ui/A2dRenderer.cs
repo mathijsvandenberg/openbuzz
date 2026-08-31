@@ -95,6 +95,36 @@ public sealed class A2dRenderer
             ? Color.FromArgb(alpha, 150, 156, 170)
             : Color.FromArgb(Math.Min(255, alpha + 30), 250, 250, 235);
 
+        var text = resolved ?? binding.Key;
+
+        var layout = new RectangleF(
+            origin.X + box.Left * t.ScaleX,
+            origin.Y - box.Top * t.ScaleY,
+            box.Width * t.ScaleX,
+            box.Height * t.ScaleY);
+
+        var align = binding.HorizontalJustify switch
+        {
+            "Centre" => TextAlign.Centre,
+            "Right" => TextAlign.Right,
+            _ => TextAlign.Left,
+        };
+
+        // The binding's Style is the game's own font name - the A2D data only
+        // ever uses RoundInstructionsSmall and RoundInstructionsLarge - so the
+        // text can be drawn in the face the original uses.
+        if (FontLibrary.Shared?.Get(binding.Style) is { } bitmapFont)
+        {
+            float scale = binding.SizeMultiplier > 0 ? Math.Min(binding.SizeMultiplier, 2.2f) : 1f;
+
+            // Shrink rather than overflow when a translation runs long.
+            var longest = bitmapFont.Wrap(text, layout.Width, scale).DefaultIfEmpty("").Max(l => bitmapFont.Measure(l, scale));
+            if (longest > layout.Width && longest > 0) scale *= layout.Width / longest;
+
+            bitmapFont.DrawWrapped(g, text, layout, scale, colour, align);
+            return;
+        }
+
         float basePoints = binding.Style.Contains("Large", StringComparison.OrdinalIgnoreCase) ? 9f : 6.5f;
         float points = Math.Clamp(basePoints * Math.Min(binding.SizeMultiplier, 2.2f), 5f, 26f);
 
@@ -112,13 +142,7 @@ public sealed class A2dRenderer
             Trimming = StringTrimming.EllipsisCharacter,
         };
 
-        var layout = new RectangleF(
-            origin.X + box.Left * t.ScaleX,
-            origin.Y - box.Top * t.ScaleY,
-            box.Width * t.ScaleX,
-            box.Height * t.ScaleY);
-
-        g.DrawString(resolved ?? binding.Key, font, brush, layout, format);
+        g.DrawString(text, font, brush, layout, format);
     }
 
     /// <summary>
