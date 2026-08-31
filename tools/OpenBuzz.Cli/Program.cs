@@ -79,6 +79,21 @@ try
         }
 
 
+        case "font":
+        {
+            var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "list";
+            var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "RWStream");
+            return sub switch
+            {
+                "list" => FontCommands.List(inDir),
+                "sample" => FontCommands.Sample(inDir,
+                                Opt(args, "--out") ?? Path.Combine(defaultExtract, "font-sample.png"),
+                                Opt(args, "--text") ?? "BUZZ! DE MUZIEKQUIZ 0123456789",
+                                int.Parse(Opt(args, "--scale") ?? "2")),
+                _ => Fail($"unknown font subcommand '{sub}'"),
+            };
+        }
+
         case "quiz":
         {
             var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "stats";

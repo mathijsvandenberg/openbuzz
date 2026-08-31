@@ -19,6 +19,9 @@ public sealed class RoundForm : Form
     /// The game's own artwork: A2D timelines, atlas sprites and the recovered
     /// string map, all shared with the standalone player through OpenBuzz.Ui.
     private readonly A2dRenderer? _art;
+
+    /// The game's own bitmap fonts, named as the scripts name them.
+    private readonly FontLibrary? _fonts = FontLibrary.Discover(AppContext.BaseDirectory);
     private readonly A2dAnimation? _bumper;
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 16 };
     private readonly Stopwatch _clock = Stopwatch.StartNew();
@@ -195,9 +198,15 @@ public sealed class RoundForm : Form
         using var answerFont = new Font("Segoe UI", 12f, FontStyle.Bold);
         using var small = new Font("Segoe UI", 7.5f);
 
-        using (var centre = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-            g.DrawString($"{Math.Max(_game.QuestionNumber, 1)}: {_game.QuestionText}",
-                         title, Brushes.White, new RectangleF(40, 26, W - 80, 76), centre);
+        // QuestionFontName is "GeneralLarge" at scaling 1, per GenericData.lua.
+        var questionText = $"{Math.Max(_game.QuestionNumber, 1)}: {_game.QuestionText}".ToUpperInvariant();
+        var questionBox = new RectangleF(40, 26, W - 80, 76);
+
+        if (_fonts?.Get("GeneralLarge") is { } questionFont)
+            questionFont.DrawWrapped(g, questionText, questionBox, 1f, Color.White);
+        else
+            using (var centre = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                g.DrawString(questionText, title, Brushes.White, questionBox, centre);
 
         bool reveal = _game.Phase is RoundPhase.Revealing or RoundPhase.Finished;
 
@@ -222,10 +231,20 @@ public sealed class RoundForm : Form
                 ? (option.IsCorrect ? Color.FromArgb(150, 255, 170) : Color.FromArgb(150, 158, 170))
                 : Color.White;
 
-            using var brush = new SolidBrush(textColour);
-            using var format = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
-            g.DrawString(option.Text.ToUpperInvariant(), answerFont, brush,
-                         new RectangleF(122, y - 4, W - 150, 42), format);
+            // AnswerFontName is "GeneralLarge" at scaling 0.9, shrunk further
+            // only when an answer would otherwise run past the edge.
+            var answerText = option.Text.ToUpperInvariant();
+            if (_fonts?.Get("GeneralLarge") is { } af)
+            {
+                float s = af.FitScale(answerText, W - 150, 0.9f);
+                af.Draw(g, answerText, 122, y + 17 - af.LineHeight * s / 2f, s, textColour);
+            }
+            else
+            {
+                using var brush = new SolidBrush(textColour);
+                using var format = new StringFormat { LineAlignment = StringAlignment.Center, Trimming = StringTrimming.EllipsisCharacter };
+                g.DrawString(answerText, answerFont, brush, new RectangleF(122, y - 4, W - 150, 42), format);
+            }
 
             if (reveal && _game.ChosenOption == i)
                 using (var marker = new Pen(Color.White, 2f))
