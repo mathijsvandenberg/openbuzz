@@ -67,14 +67,7 @@ public sealed class RwGeometry
 
         var textures = ReadMaterialTextures(d, geometry);
 
-        if (native)
-        {
-            return new RwGeometry
-            {
-                IsNative = true, Flags = flags, NumUVs = numUVs,
-                VertexCount = vertexCount, MaterialTextures = textures,
-            };
-        }
+        if (native) return ParseNative(d, geometry, flags, numUVs, textures);
 
         // This build writes no ambient/specular/diffuse trio - the struct sizes
         // only add up without it, exactly, for all 253 plain geometries.
@@ -142,6 +135,68 @@ public sealed class RwGeometry
             Triangles = triangles,
             MaterialTextures = textures,
         };
+    }
+
+    /// <summary>
+    /// Native geometry: the STRUCT is a stub and the vertex data sits in an
+    /// EXTENSION as VU1 DMA chains, with BINMESH giving one split per material.
+    /// </summary>
+    private static RwGeometry ParseNative(byte[] d, RwNode geometry, int flags, int numUVs, string[] textures)
+    {
+        var extension = geometry.Children.FirstOrDefault(c => c.Id == RwId.Extension);
+        var binMesh = extension?.Children.FirstOrDefault(c => c.Id == RwId.Mesh);
+        var nativeData = extension?.Children.FirstOrDefault(c => c.Id == RwId.NativeData);
+
+        if (binMesh is null || nativeData is null)
+            return new RwGeometry { IsNative = true, Flags = flags, NumUVs = numUVs, VertexCount = 0, MaterialTextures = textures };
+
+        var splits = ReadBinMesh(d, binMesh);
+        var mesh = RwPs2Native.Read(d, nativeData.DataOffset, nativeData.End,
+                                    [.. splits.Select(m => m.Indices)], (flags & FlagPrelit) != 0, numUVs);
+
+        var triangles = new List<RwTriangle>();
+        for (int i = 0; i < mesh.Strips.Count && i < splits.Count; i++)
+        {
+            ushort material = (ushort)splits[i].Material;
+            foreach (var (a, b, c) in RwPs2Native.Triangulate(mesh.Strips[i], mesh.Positions))
+                triangles.Add(new RwTriangle((ushort)a, (ushort)b, (ushort)c, material));
+        }
+
+        return new RwGeometry
+        {
+            IsNative = true,
+            Flags = flags,
+            NumUVs = numUVs,
+            VertexCount = mesh.Positions.Count / 3,
+            Positions = [.. mesh.Positions],
+            Normals = [.. mesh.Normals],
+            TexCoords = [.. mesh.TexCoords],
+            Colours = [.. mesh.Colours],
+            Triangles = [.. triangles],
+            MaterialTextures = textures,
+        };
+    }
+
+    /// BINMESH: a flags word, the mesh count and total indices, then each mesh.
+    private static List<(int Indices, int Material)> ReadBinMesh(byte[] d, RwNode binMesh)
+    {
+        int p = binMesh.DataOffset;
+        int meshCount = BinaryPrimitives.ReadInt32LittleEndian(d.AsSpan(p + 4));
+        p += 12;
+
+        // Non-native meshes carry their index buffer inline; native ones do not.
+        bool hasIndices = binMesh.Size > 12 + meshCount * 8;
+
+        var result = new List<(int, int)>();
+        for (int i = 0; i < meshCount && p + 8 <= binMesh.End; i++)
+        {
+            int indices = BinaryPrimitives.ReadInt32LittleEndian(d.AsSpan(p));
+            int material = BinaryPrimitives.ReadInt32LittleEndian(d.AsSpan(p + 4));
+            p += 8;
+            if (hasIndices) p += indices * 4;
+            result.Add((indices, material));
+        }
+        return result;
     }
 
     /// Pulls the texture name out of each MATERIAL in the geometry's MATLIST.

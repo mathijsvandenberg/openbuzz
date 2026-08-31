@@ -30,7 +30,7 @@ Format work is done for the layers that matter most; nothing renders yet.
 | Song table | `rri.dat` decoded - 1000 songs, release year + clip name, all clips present |
 | `.tex` textures | **Solved** - 42/42 decode, verified against PCSX2 captures. See [texture-format.md](docs/texture-format.md). |
 | A2D animations | **Solved** - 176 animations, 21030 keyframes exported to JSON. See [a2d-format.md](docs/a2d-format.md). |
-| `.rp2` models | **Partial** - streams parsed, 445 embedded textures extracted; geometry is VU1 DMA chains, not started. See [rw-format.md](docs/rw-format.md). |
+| `.rp2` models | **Solved** - all 968 geometries parse, plain and PS2-native; exported to glTF with textures. Skinning not started. See [rw-format.md](docs/rw-format.md). |
 | Fonts | **Solved** - six bitmap fonts per stream: glyph rects, advances, character map; rendering in the round. See [font-format.md](docs/font-format.md). |
 | `.pss` / `.ipu` video | Not started - MPEG-2 program stream / Sony IPU |
 | Real Buzz HID | Not started - USB HID, Sony VID `0x054C` |

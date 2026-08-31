@@ -10,7 +10,7 @@ public static class ModelCommands
         var files = Directory.GetFiles(dir, "*.rp2").OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToArray();
         if (files.Length == 0) { Console.Error.WriteLine($"No .rp2 files under {dir}."); return 1; }
 
-        Console.WriteLine($"{"stream",-30} {"plain",6} {"native",7} {"verts",8} {"tris",8}");
+        Console.WriteLine($"{"stream",-30} {"plain",6} {"native",7} {"verts",8} {"tris",8} {"empty",6}");
         int plainTotal = 0, nativeTotal = 0;
 
         foreach (var path in files)
@@ -23,12 +23,13 @@ public static class ModelCommands
 
             if (plain == 0 && native == 0) continue;
             Console.WriteLine($"{Path.GetFileNameWithoutExtension(path),-30} {plain,6} {native,7} " +
-                              $"{geometries.Where(g => !g.IsNative).Sum(g => g.VertexCount),8} " +
-                              $"{geometries.Where(g => !g.IsNative).Sum(g => g.Triangles.Length),8}");
+                              $"{geometries.Sum(g => g.VertexCount),8} " +
+                              $"{geometries.Sum(g => g.Triangles.Length),8} " +
+                              $"{geometries.Count(g => g.Positions.Length == 0),6}");
         }
 
         Console.WriteLine();
-        Console.WriteLine($"{plainTotal} plain geometries exportable, {nativeTotal} native still to do");
+        Console.WriteLine($"{plainTotal} plain and {nativeTotal} native geometries");
         return 0;
     }
 
@@ -50,7 +51,7 @@ public static class ModelCommands
         foreach (var path in files)
         {
             var data = File.ReadAllBytes(path);
-            var geometries = RwGeometry.LoadAll(data).Where(g => !g.IsNative && g.Positions.Length > 0).ToList();
+            var geometries = RwGeometry.LoadAll(data).Where(g => g.Positions.Length > 0).ToList();
             if (geometries.Count == 0) { skipped++; continue; }
 
             var glb = new GlbWriter();
