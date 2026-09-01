@@ -26,7 +26,7 @@ Format work is done for the layers that matter most; nothing renders yet.
 | `.vgp` audio | **Solved** - 2336-byte sectors; stereo music / mono speech auto-detected from the trailer, 44100 Hz. See [audio-format.md](docs/audio-format.md). |
 | `.vag` audio | **Solved** - standard 48-byte header, declares 11025/22050/44100 Hz |
 | Controllers | **Real hardware working** - wired Buzz buzzers read as one HID pad (`054C:1000`), lamps driven by `obz-lamps.exe` over HID output reports; virtual panel still behind `IBuzzInputSource` in the C# tools |
-| Playable round | **Working** - `obz-round` plays a clip, takes buzzes, scores. Song-clip link unverified. |
+| Playable round | **Working** - Point Builder in `obz-viewer` on real buzzers; `obz-round` is the older C# buzz-in prototype. |
 | Song table | `rri.dat` decoded - 1000 songs, release year + clip name, all clips present |
 | `.tex` textures | **Solved** - 42/42 decode, verified against PCSX2 captures. See [texture-format.md](docs/texture-format.md). |
 | A2D animations | **Solved** - 176 animations, 21030 keyframes exported to JSON. See [a2d-format.md](docs/a2d-format.md). |
@@ -35,7 +35,9 @@ Format work is done for the layers that matter most; nothing renders yet.
 | Godot build | `obz-viewer.exe` - three tabs: models with their clips, the 2D layer in the game fonts, and Point Builder playable on the real USB buzzers with lamps. See [godot/OpenBuzzViewer](godot/OpenBuzzViewer/README.md). |
 | Round types | **Point Builder done**, read from the game scripts. See [round-types.md](docs/round-types.md). |
 | `.pss` / `.ipu` video | Not started - MPEG-2 program stream / Sony IPU |
-| Real Buzz HID | Not started - USB HID, Sony VID `0x054C` |
+| Studio set, lights, cameras | Not started - in the `.rp2` streams, chunks parse but nothing reads the records |
+| Game flow | Not started - front end, character select, a session across rounds |
+| 3D + 2D composited | Not started - both halves run, never in the same scene |
 
 ## What the disc turned out to be
 
