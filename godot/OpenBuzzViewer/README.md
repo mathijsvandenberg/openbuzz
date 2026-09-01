@@ -103,4 +103,5 @@ right answer blinks it, a wrong one goes dark.
 
 The report is the one the Linux `hid-sony` driver uses for these buzzers - a
 leading zero then one byte per lamp, `0xFF` for lit - padded to the length the
-device declares, which it reports as 8.
+device declares, which it reports as 8. **Confirmed lighting real hardware**,
+so the byte offsets are measured rather than inferred from the driver.

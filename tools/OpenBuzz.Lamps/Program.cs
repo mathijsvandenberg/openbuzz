@@ -65,8 +65,10 @@ return 0;
 ///
 /// The layout is the one the Linux hid-sony driver uses for these buzzers: a
 /// leading zero, then one byte per lamp, 0xFF for lit. The report is padded to
-/// whatever length the device declares, because a report of the wrong size is
-/// rejected outright rather than truncated.
+/// whatever length the device declares - it says 8 - because a report of the
+/// wrong size is rejected outright rather than truncated.
+///
+/// Verified against real buzzers: these offsets light the lamps.
 /// </summary>
 static bool Send(HidDevice device, string pattern)
 {
