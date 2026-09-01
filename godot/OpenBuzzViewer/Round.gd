@@ -5,7 +5,8 @@ extends Control
 ## What each round is comes from RoundRules, which reads it out of the game:
 ## the input model from <Name>Round.luaasm, the parameters from
 ## GenericData.luaasm, and the on-screen title and rules from the game's own
-## text table. This file is the machine that runs them.
+## text table. This file is the machine that runs them, and draws them with
+## the game's own art out of the sprite atlases.
 ##
 ## Handset report order, measured on the hardware:
 ##     0  red buzzer   1  yellow   2  green   3  orange   4  blue
@@ -26,12 +27,51 @@ const COLOURS := [
 	Color(0.96, 0.85, 0.20),   # yellow
 ]
 
+## The atlas sprites for the four answer squares, in the same order.
+const ANSWER_SPRITES := ["PIP_answer_B", "PIP_answer_O", "PIP_answer_G", "PIP_answer_Y"]
+const PLACE_SPRITES := ["PIP_1st", "PIP_2nd", "PIP_3rd", "PIP_4th"]
+
+## The icon the round intro puts beside its title, one per round.
+const ROUND_ICONS := {
+	points_builder = "RS_point_builder", fastest_finger = "RS_fastest_finger",
+	quickfire = "RS_LB4UL", snap = "RS_snap", trigger_finger = "RS_point_stealer",
+	buzz_stop = "RS_buzz_stop", off_loader = "RS_off_loader",
+	pass_the_bomb = "RS_pass_bomb", time_builder = "RS_time_builder",
+	hot_seat = "RS_HotSeat",
+}
+
+## Written out rather than resolved: the round ordinals are among the text keys
+## whose hash the port has not cracked, so the table has no entry for them.
+const ORDINALS := ["EERSTE", "TWEEDE", "DERDE", "VIERDE", "VIJFDE", "ZESDE", "ZEVENDE"]
+
 ## The screen covers the left of the frame; the strip on the right is left
 ## clear so the hostess standing in the 3D layer behind is not painted over.
 const SCREEN_WIDTH := 0.80
 
+## Layout, measured off the reference shots as fractions of the screen panel
+## and written here in canvas units. The panel is 512 x 480.
+const PANEL := Vector2(CANVAS.x * SCREEN_WIDTH, CANVAS.y)
+const CLOCK_CENTRE := Vector2(46, 52)
+const CLOCK_RADIUS := 31.0
+const QUESTION_BOX := Rect2(92, 16, PANEL.x - 122, 68)
+const ANSWER_TOP := 116.0
+const ANSWER_STEP := 59.0
+const ANSWER_SQUARE := 26.0
+const ANSWER_LEFT := 82.0
+const ANSWER_TEXT := 118.0
+const CARD_LEFT := 76.0
+const CARD_TOP := 352.0
+const CARD_SIZE := 84.0
+const CARD_BAR := 26.0
+const CARD_GAP := 10.0
+
 const CHASE_STEP := 0.16
 const CUE_STEP := 1.0
+
+## Flitsronde spends this share of the clock arriving a letter at a time.
+## Set against the reference shot, which has about eleven letters up with most
+## of the clock still to run.
+const REVEAL_SHARE := 0.40
 
 enum Phase { INTRO, PLAYING, PICKING, REVEAL, DONE }
 
@@ -47,6 +87,10 @@ var _pad := -1
 var _held := {}
 var _demo := false
 
+## How many seats are in play. Four unless --players says otherwise; the
+## reference shots are a two-player game, and one player is a valid game too.
+var _players := PLAYERS
+
 var _round: Dictionary = {}
 var _questions: Array = []
 var _index := 0
@@ -57,6 +101,7 @@ var _times := [0.0, 0.0, 0.0, 0.0]
 var _scores := [0, 0, 0, 0]
 var _awarded := [0, 0, 0, 0]
 var _banked := [0.0, 0.0, 0.0, 0.0]
+var _places := [-1, -1, -1, -1]   ## finishing order, for the speed round rosettes
 
 ## Display order of the four options, and where the correct one landed.
 ## The disc stores the correct answer first in every record, so shown in
@@ -74,6 +119,12 @@ var _clock := 0.0
 var _wav_dir := ""
 var _last_button := ""
 var _note := ""
+
+## How much of the question and answers Flitsronde has typed out so far,
+## counted in characters, and how fast they arrive.
+var _reveal := 0.0
+var _reveal_rate := 0.0
+var _burst := 0.0         ## seconds left on the bomb going off
 
 ## A game is a queue of round ids. Empty means a single round, picked from the
 ## list for testing; scores and banked time carry across the whole queue.
@@ -104,10 +155,14 @@ func _ready() -> void:
 
 	_find_pad()
 	_lamps.start(Bundle.base_dir())
-	_demo = OS.get_cmdline_user_args().has("--demo")
+	var args := OS.get_cmdline_user_args()
+	_demo = args.has("--demo")
+
+	var seats := args.find("--players")
+	if seats >= 0 and seats + 1 < args.size():
+		_players = clampi(int(args[seats + 1]), 1, PLAYERS)
 
 	var start := 3
-	var args := OS.get_cmdline_user_args()
 	var at := args.find("--round")
 	if at >= 0 and at + 1 < args.size():
 		for i in range(RoundRules.all().size()):
@@ -166,10 +221,13 @@ func _select_round_dict(round: Dictionary) -> void:
 	_round = round
 	_blurb.text = "  " + str(_round.blurb) + (
 		"\n\n  Approximated: " + str(_round.approximates) if _round.approximates != "" else "")
-	_scores = [0, 0, 0, 0]
-	_banked = [0.0, 0.0, 0.0, 0.0]
+	# Scores and banked time deliberately survive this: a game carries them
+	# across its rounds, and _pick clears them when a new game starts.
 	_index = 0
 	_active = 0
+	# Each round counts its own share of questions. Without this reset the
+	# count carried over and every round after the first handed on after one.
+	_asked = 0
 	_note = ""
 	_phase = Phase.INTRO
 	_audio.stop()
@@ -188,6 +246,8 @@ func _start_question() -> void:
 	_cue_clock = 0.0
 	_chase_clock = 0.0
 	_clock = float(_round.seconds)
+	_places = [-1, -1, -1, -1]
+	_burst = 0.0
 	_note = ""
 
 	match int(_round.input):
@@ -208,6 +268,19 @@ func _start_question() -> void:
 	_order = [0, 1, 2, 3]
 	_order.shuffle()
 	_correct = _order.find(int(q["correct"]))
+
+	# Flitsronde types the question and all four answers out together, a letter
+	# at a time, as in the reference shots: every line is cut at the same
+	# character count, not one line after another. The rate is set off the
+	# longest of them so the last letter lands with about a third of the clock
+	# still to run.
+	_reveal = 0.0
+	_reveal_rate = 0.0
+	if bool(_round.get("reveals", false)):
+		var longest := str(q["question"]).length()
+		for option in q["options"]:
+			longest = maxi(longest, str(option).length())
+		_reveal_rate = float(longest) / maxf(float(_round.seconds) * REVEAL_SHARE, 0.001)
 
 	var path := _wav_dir.path_join("%s.wav" % str(q["clip"]))
 	if FileAccess.file_exists(path):
@@ -234,6 +307,7 @@ func _process(delta: float) -> void:
 			_give_up_pick()
 	elif _phase == Phase.REVEAL:
 		_clock -= delta
+		_burst = maxf(_burst - delta, 0.0)
 		if _clock <= 0.0:
 			_next_question()
 
@@ -247,19 +321,28 @@ func _process(delta: float) -> void:
 
 ## Everything that ticks while a question is live, per input model.
 func _advance(delta: float) -> void:
+	# The reveal stops the moment somebody buzzes: what is on screen at that
+	# point is what they committed to.
+	if _reveal_rate > 0.0 and _winner < 0:
+		_reveal += _reveal_rate * delta
+
 	match int(_round.input):
 		RoundRules.Mode.ALL:
 			if _demo:
-				for p in range(PLAYERS):
+				for p in range(_players):
 					if _answers[p] == -1 and _clock < float(_round.seconds) - 0.4 - p * 0.3:
 						_answer(p, p % 4)
-			if not _answers.has(-1) or _clock <= 0.0:
+			if _all_in() or _clock <= 0.0:
 				_finish()
 
 		RoundRules.Mode.BUZZ_THEN_ANSWER:
-			if _demo and _winner < 0 and _clock < float(_round.seconds) - 0.5:
+			# The demo waits for the reveal to get somewhere before buzzing.
+			# Buzzing in half a second freezes Flitsronde on two letters, which
+			# is not what a player would do on a round built round a reveal.
+			var think := 4.0 if _reveal_rate > 0.0 else 0.5
+			if _demo and _winner < 0 and _clock < float(_round.seconds) - think:
 				_press(1, BUZZ)
-			elif _demo and _winner >= 0 and _clock < float(_round.seconds) - 1.2:
+			elif _demo and _winner >= 0 and _clock < float(_round.seconds) - think - 0.7:
 				_answer(_winner, 0)
 			if _clock <= 0.0:
 				_finish()
@@ -289,7 +372,7 @@ func _advance(delta: float) -> void:
 			# The lamp travels while the clip plays; the music stopping fixes it.
 			_chase_clock -= delta
 			if _chase_clock <= 0.0:
-				_active = (_active + 1) % PLAYERS
+				_active = (_active + 1) % _players
 				_lamps.only(_active)
 				_chase_clock = CHASE_STEP
 			if not _audio.playing or _clock <= 0.0:
@@ -297,6 +380,14 @@ func _advance(delta: float) -> void:
 				_clock = 15.0
 				_lamps.only(_active)
 				_note = "SPELER %d" % (_active + 1)
+
+
+## Whether every seat in play has answered.
+func _all_in() -> bool:
+	for p in range(_players):
+		if _answers[p] == -1:
+			return false
+	return true
 
 
 ## Nobody picked in time: the question just ends, unscored.
@@ -340,7 +431,7 @@ func _next_question() -> void:
 
 	# Whose turn it is next, for the rounds that rotate.
 	if int(_round.input) == RoundRules.Mode.ACTIVE:
-		_active = (_active + 1) % PLAYERS
+		_active = (_active + 1) % _players
 
 	# Hot Seat stays with one player until the time they banked runs out.
 	if int(_round.score) == RoundRules.Score.STAKE:
@@ -369,7 +460,7 @@ func _finish() -> void:
 
 	match int(_round.score):
 		RoundRules.Score.FLAT:
-			for p in range(PLAYERS):
+			for p in range(_players):
 				if _answers[p] == _correct:
 					_awarded[p] = RoundRules.POINTS
 					_scores[p] += RoundRules.POINTS
@@ -377,7 +468,7 @@ func _finish() -> void:
 		RoundRules.Score.SPEED:
 			# Ranked by how quickly the correct answer came in.
 			var right := []
-			for p in range(PLAYERS):
+			for p in range(_players):
 				if _answers[p] == _correct:
 					right.append({p = p, t = _times[p]})
 			right.sort_custom(func(a, b): return a.t < b.t)
@@ -385,6 +476,7 @@ func _finish() -> void:
 				var pts: int = RoundRules.SPEED_POINTS[mini(rank, RoundRules.SPEED_POINTS.size() - 1)]
 				_awarded[right[rank].p] = pts
 				_scores[right[rank].p] += pts
+				_places[right[rank].p] = rank
 
 		RoundRules.Score.STEAL:
 			if _winner >= 0 and _answers[_winner] == _correct:
@@ -419,13 +511,14 @@ func _explode() -> void:
 	_scores[_active] -= RoundRules.POINTS
 	_awarded[_active] = -RoundRules.POINTS
 	_note = "BOEM"
+	_burst = 3.0
 	_fuse = randf_range(20.0, 40.0)
 
 
 func _poll_buttons() -> void:
 	if _pad < 0:
 		return
-	for player in range(PLAYERS):
+	for player in range(_players):
 		for slot in range(BUTTONS_PER_HANDSET):
 			var button := player * BUTTONS_PER_HANDSET + slot
 			var down := Input.is_joy_button_pressed(_pad, button)
@@ -521,6 +614,14 @@ func _answer(player: int, choice: int) -> void:
 		_lamps.set_lamps([_answers[0] == -1, _answers[1] == -1, _answers[2] == -1, _answers[3] == -1])
 
 
+## How much of a string Flitsronde has typed out. Every line on screen is cut
+## at the same character count, so they fill in together.
+func _typed(body: String) -> String:
+	if _reveal_rate <= 0.0 or _phase != Phase.PLAYING:
+		return body
+	return body.substr(0, mini(int(_reveal), body.length()))
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
@@ -544,7 +645,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			_press(player, ANSWER_BUTTONS[slot])
 			return
 
-
 func _phase_name() -> String:
 	match _phase:
 		Phase.INTRO: return "press a button to start"
@@ -562,7 +662,7 @@ func _draw_round() -> void:
 	var offset := (view - CANVAS * scale) * 0.5
 
 	# The screen panel, drawn over the studio rather than instead of it.
-	var screen := Rect2(offset, Vector2(CANVAS.x * SCREEN_WIDTH, CANVAS.y) * scale)
+	var screen := Rect2(offset, PANEL * scale)
 	_canvas.draw_rect(screen, Color(0.09, 0.12, 0.18, 0.90))
 	_canvas.draw_rect(screen, Color(0.40, 0.47, 0.62, 0.55), false, 2.0 * scale)
 
@@ -582,138 +682,248 @@ func _draw_round() -> void:
 			_draw_scores(offset, scale)
 		_:
 			_draw_question(offset, scale)
-			_draw_podiums(offset, scale)
+			_draw_cards(offset, scale)
 
+
+## Places a canvas-space rectangle on screen.
+func _at(offset: Vector2, scale: float, x: float, y: float, w: float, h: float) -> Rect2:
+	return Rect2(offset + Vector2(x, y) * scale, Vector2(w, h) * scale)
+
+
+func _sprite(offset: Vector2, scale: float, sprite_name: String,
+		x: float, y: float, w: float, h: float, tint := Color.WHITE) -> void:
+	_bundle.draw_sprite(_canvas, sprite_name, _at(offset, scale, x, y, w, h), tint)
+
+
+func _text(offset: Vector2, scale: float, style: String, body: String,
+		x: float, y: float, w: float, h: float,
+		size: float, colour: Color, justify := "Left") -> void:
+	_bundle.draw_wrapped(_canvas, style, body,
+		_at(offset, scale, x, y, w, h), scale * size, colour, justify)
+
+
+# ---------------------------------------------------------------- intro
 
 func _draw_intro(offset: Vector2, scale: float) -> void:
-	_bundle.draw_wrapped(_canvas, "RoundInstructionsLarge",
-		RoundRules.title(_round, _bundle.text),
-		Rect2(offset + Vector2(30, 96) * scale, Vector2(CANVAS.x - 60, 60) * scale),
-		scale * 1.2, Color.WHITE)
+	var icon: String = ROUND_ICONS.get(str(_round.get("id", "")), "")
+	if icon != "":
+		_sprite(offset, scale, icon, 26, 58, 74, 74)
+
+	if not _queue.is_empty() and _leg < ORDINALS.size():
+		_text(offset, scale, "RoundInstructionsSmall", "%s RONDE" % ORDINALS[_leg],
+			112, 56, PANEL.x - 140, 20, 0.7, Color(0.72, 0.76, 0.86))
+
+	_text(offset, scale, "RoundInstructionsLarge", RoundRules.title(_round, _bundle.text),
+		112, 78, PANEL.x - 140, 54, 1.15, Color.WHITE)
+
+	if int(_round.score) == RoundRules.Score.SPEED:
+		_draw_speed_table(offset, scale)
+		return
 
 	var y := 190.0
 	for line in RoundRules.lines(_round, _bundle.text):
-		_bundle.draw_wrapped(_canvas, "RoundInstructionsSmall", line,
-			Rect2(offset + Vector2(70, y) * scale, Vector2(CANVAS.x - 140, 60) * scale),
-			scale * 0.95, Color(0.82, 0.84, 0.9))
+		_text(offset, scale, "RoundInstructionsSmall", line,
+			70, y, PANEL.x - 140, 60, 0.9, Color(0.82, 0.84, 0.9), "Centre")
 		y += 70.0
 
+
+## Wie Is Het Snelst prints its own scoring table on the intro, so the port
+## prints the same one. These are where the tier values come from.
+func _draw_speed_table(offset: Vector2, scale: float) -> void:
+	_sprite(offset, scale, "RS_tickL", 40, 176, 52, 52)
+	for i in range(RoundRules.SPEED_POINTS.size()):
+		var y := 168.0 + i * 30.0
+		_text(offset, scale, "RoundInstructionsSmall", "%dE GOEDE ANTWOORD" % (i + 1),
+			110, y, 220, 26, 0.78, Color(0.88, 0.90, 0.95))
+		_text(offset, scale, "RoundInstructionsSmall", "+%d PTN" % RoundRules.SPEED_POINTS[i],
+			330, y, 150, 26, 0.78, Color(0.95, 0.88, 0.45), "Right")
+
+	_sprite(offset, scale, "RS_crossL", 40, 312, 52, 52)
+	_text(offset, scale, "RoundInstructionsSmall", "FOUTE ANTWOORDEN",
+		110, 322, 220, 26, 0.78, Color(0.88, 0.90, 0.95))
+	_text(offset, scale, "RoundInstructionsSmall", "0 PTN",
+		330, 322, 150, 26, 0.78, Color(0.85, 0.60, 0.55), "Right")
+
+
+# ---------------------------------------------------------------- question
 
 func _draw_question(offset: Vector2, scale: float) -> void:
 	var q: Dictionary = _questions[_index]
 	var on_cue := int(_round.input) == RoundRules.Mode.BUZZ_ON_CUE
 
-	_bundle.draw_wrapped(_canvas, "GeneralLarge",
-		"%d. %s" % [_index + 1, str(q["question"])],
-		Rect2(offset + Vector2(30, 16) * scale, Vector2(CANVAS.x * SCREEN_WIDTH - 60, 62) * scale),
-		scale * 0.95, Color.WHITE)
+	_draw_clock(offset, scale)
 
-	if _phase == Phase.PLAYING:
-		var span := maxf(float(_round.seconds), 0.001)
-		_canvas.draw_rect(Rect2(offset + Vector2(30, 88) * scale,
-			Vector2((CANVAS.x * SCREEN_WIDTH - 60) * clampf(_clock / span, 0.0, 1.0), 4) * scale),
-			Color(0.85, 0.78, 0.25))
+	# Numbered the way the game numbers it, "2:TEXT". Flitsronde spends the
+	# first part of the clock typing it out a letter at a time.
+	var asked := str(q["question"])
+	_text(offset, scale, "GeneralLarge", "%d:%s" % [_asked + 1, _typed(asked)],
+		QUESTION_BOX.position.x, QUESTION_BOX.position.y,
+		QUESTION_BOX.size.x, QUESTION_BOX.size.y, 0.9, Color.WHITE)
 
 	if int(_round.score) == RoundRules.Score.BOMB and _phase == Phase.PLAYING:
-		_bundle.draw_wrapped(_canvas, "RoundInstructionsSmall", "BOM  %0.0f" % maxf(_fuse, 0.0),
-			Rect2(offset + Vector2(CANVAS.x * SCREEN_WIDTH - 150, 96) * scale, Vector2(130, 22) * scale),
-			scale * 0.8, Color(0.95, 0.5, 0.35), "Right")
+		_text(offset, scale, "RoundInstructionsSmall", "%0.0f" % maxf(_fuse, 0.0),
+			PANEL.x - 120, 30, 96, 24, 0.8, Color(0.95, 0.5, 0.35), "Right")
 
 	var options: Array = q["options"]
 	for i in range(options.size()):
-		var y := 132.0 + i * 48.0
+		var y := ANSWER_TOP + i * ANSWER_STEP
+		var body := str(options[_order[i]])
+		var shown := _typed(body)
 
 		# On-cue rounds show one option at a time; the rest show all four.
-		var visible := (not on_cue) or _phase != Phase.PLAYING or i == _cue
-		if not visible:
+		if on_cue and _phase == Phase.PLAYING and i != _cue:
 			continue
 
-		# A rule under each answer, with the colour square sitting on it.
-		_canvas.draw_line(offset + Vector2(96, y + 30) * scale,
-			offset + Vector2(CANVAS.x * SCREEN_WIDTH - 34, y + 30) * scale,
-			Color(1, 1, 1, 0.20), 1.5 * scale)
+		# A rule under each answer, drawn with the game's own hairline sprite.
+		_sprite(offset, scale, "hor_line", ANSWER_TEXT, y + 32.0,
+			PANEL.x - ANSWER_TEXT - 24.0, 2, Color(1, 1, 1, 0.22))
 
-		var swatch := Rect2(offset + Vector2(56, y) * scale, Vector2(28, 28) * scale)
-		_canvas.draw_rect(swatch, Color(0.05, 0.07, 0.10, 0.9))
-		_canvas.draw_rect(swatch, COLOURS[i], false, 3.0 * scale)
+		# The colour squares are the game's art, not drawn boxes.
+		_sprite(offset, scale, ANSWER_SPRITES[i], ANSWER_LEFT, y, ANSWER_SQUARE, ANSWER_SQUARE)
 
 		var tint := Color.WHITE
 		if _phase == Phase.REVEAL:
 			tint = Color(0.59, 1.0, 0.67) if i == _correct else Color(0.55, 0.58, 0.64)
+		elif shown.length() < body.length():
+			# Still arriving: dimmer, so the eye follows the letters landing.
+			tint = Color(0.78, 0.81, 0.88)
 
-		_bundle.draw_wrapped(_canvas, "GeneralLarge", str(options[_order[i]]),
-			Rect2(offset + Vector2(96, y - 3) * scale, Vector2(CANVAS.x * SCREEN_WIDTH - 130, 34) * scale),
-			scale * 0.85, tint, "Left")
+		if shown != "":
+			_text(offset, scale, "GeneralLarge", shown,
+				ANSWER_TEXT, y - 2, PANEL.x - ANSWER_TEXT - 24.0, 34, 0.82, tint)
 
 	# Snap and Trigger Finger deliberately show one option at a time; without
 	# saying so it just looks like the others failed to draw.
 	if on_cue and _phase == Phase.PLAYING:
-		_bundle.draw_wrapped(_canvas, "RoundInstructionsSmall",
+		_text(offset, scale, "RoundInstructionsSmall",
 			"DRUK OP DE ZOEMER BIJ HET JUISTE ANTWOORD",
-			Rect2(offset + Vector2(30, 100) * scale, Vector2(CANVAS.x * SCREEN_WIDTH - 60, 20) * scale),
-			scale * 0.7, Color(0.72, 0.76, 0.86))
-
+			30, 92, PANEL.x - 60, 20, 0.7, Color(0.72, 0.76, 0.86), "Centre")
 		for slot in range(4):
-			var dot := Rect2(offset + Vector2(CANVAS.x * SCREEN_WIDTH * 0.5 - 34 + slot * 18, 330) * scale,
-				Vector2(11, 11) * scale)
-			_canvas.draw_rect(dot, COLOURS[slot] if slot == _cue else Color(0.22, 0.24, 0.30))
+			_sprite(offset, scale, ANSWER_SPRITES[slot],
+				PANEL.x * 0.5 - 30 + slot * 16, 326, 12, 12,
+				Color.WHITE if slot == _cue else Color(0.3, 0.32, 0.38))
 
 	if _note != "":
-		_bundle.draw_wrapped(_canvas, "ExtraLarge", _note,
-			Rect2(offset + Vector2(0, 322) * scale, Vector2(CANVAS.x * SCREEN_WIDTH, 36) * scale),
-			scale * 0.55, Color(0.95, 0.83, 0.35))
+		_text(offset, scale, "ExtraLarge", _note,
+			0, 316, PANEL.x, 34, 0.55, Color(0.95, 0.83, 0.35), "Centre")
 
 
-func _draw_podiums(offset: Vector2, scale: float) -> void:
+## The pie clock the game puts in the top-left corner. The dial is the game's
+## own sprite; the wedge eaten out of it is drawn over the top, clockwise from
+## twelve, because that sprite is a single static disc.
+func _draw_clock(offset: Vector2, scale: float) -> void:
+	if _phase != Phase.PLAYING and _phase != Phase.PICKING:
+		return
+
+	_sprite(offset, scale, "countdown",
+		CLOCK_CENTRE.x - CLOCK_RADIUS, CLOCK_CENTRE.y - CLOCK_RADIUS,
+		CLOCK_RADIUS * 2.0, CLOCK_RADIUS * 2.0)
+
+	var span := maxf(float(_round.seconds), 0.001)
+	var spent := clampf(1.0 - _clock / span, 0.0, 1.0)
+	if spent <= 0.0:
+		return
+
+	var centre := offset + CLOCK_CENTRE * scale
+	var radius := CLOCK_RADIUS * scale * 0.82
+	var points := PackedVector2Array([centre])
+	var steps := maxi(int(spent * 64.0), 2)
+	for i in range(steps + 1):
+		var angle := -PI * 0.5 + TAU * spent * float(i) / float(steps)
+		points.append(centre + Vector2(cos(angle), sin(angle)) * radius)
+	_canvas.draw_colored_polygon(points, Color(0.06, 0.07, 0.10, 0.92))
+
+
+# ---------------------------------------------------------------- players
+
+## The seats along the bottom: a portrait surround with a name bar under it,
+## both the game's own art. Lit or grey says who is live.
+func _draw_cards(offset: Vector2, scale: float) -> void:
 	var live := int(_round.input) in [RoundRules.Mode.ACTIVE, RoundRules.Mode.CHASE]
 	var banks := int(_round.score) in [RoundRules.Score.TIME, RoundRules.Score.STAKE]
+	var bomb := int(_round.score) == RoundRules.Score.BOMB
 
-	for p in range(PLAYERS):
-		var box := Rect2(offset + Vector2(44 + p * 140, 372) * scale, Vector2(124, 88) * scale)
+	for p in range(_players):
+		var x := CARD_LEFT + p * (CARD_SIZE + CARD_GAP)
 		var answered: bool = _answers[p] != -1
 		var spot: bool = (live and p == _active) or (_winner == p)
 
-		_canvas.draw_rect(box, Color(0.20, 0.17, 0.10) if spot else (
-			Color(0.13, 0.15, 0.2) if answered else Color(0.10, 0.11, 0.14)))
-		_canvas.draw_rect(box, Color(0.85, 0.7, 0.3) if spot else Color(0.38, 0.4, 0.48),
-			false, (2.0 if spot else 1.0) * scale)
+		# In the bomb round only the player holding it is lit and the rest are
+		# silhouetted, which is how the game shows who is out of danger. The
+		# two surround sprites are named the other way round to how they read:
+		# Grey is the bright cyan frame, White the plain one, so the lighting
+		# is done with the tint rather than by picking between them.
+		# Brightness only, never a hue: the surround sprite is cyan, and tinting
+		# it warm turns the lit card green rather than lighting it.
+		var tint := Color.WHITE
+		if bomb:
+			tint = Color(1.5, 1.5, 1.5) if spot else Color(0.26, 0.28, 0.34)
+		elif spot:
+			tint = Color(1.5, 1.5, 1.5)
 
-		_bundle.draw_wrapped(_canvas, "RoundInstructionsSmall", "SPELER %d" % (p + 1),
-			Rect2(box.position + Vector2(0, 4 * scale), Vector2(box.size.x, 18 * scale)),
-			scale * 0.72, Color.WHITE)
+		_sprite(offset, scale, "PortraitSurroundGrey", x, CARD_TOP, CARD_SIZE, CARD_SIZE, tint)
+		_sprite(offset, scale, "ViewportBarGrey",
+			x, CARD_TOP + CARD_SIZE, CARD_SIZE, CARD_BAR, tint)
 
-		if answered:
-			var swatch := Rect2(box.position + Vector2(box.size.x * 0.5 - 11 * scale, 26 * scale),
-				Vector2(22, 22) * scale)
-			_canvas.draw_rect(swatch,
-				COLOURS[_answers[p]] if _phase == Phase.REVEAL else Color(0.55, 0.58, 0.66))
-
-		var label := str(_scores[p])
-		var colour := Color.WHITE
+		# What the card holds: the running score, or banked seconds in the two
+		# rounds that trade in time.
+		var middle := str(_scores[p])
 		if banks:
-			label = "%0.0fs" % _banked[p]
+			middle = "%0.0fs" % _banked[p]
+		var colour := Color.WHITE
 		if _phase == Phase.REVEAL and _awarded[p] != 0:
-			label = ("+%d" % _awarded[p]) if _awarded[p] > 0 else str(_awarded[p])
+			middle = ("+%d" % _awarded[p]) if _awarded[p] > 0 else str(_awarded[p])
 			colour = Color(0.6, 1.0, 0.7) if _awarded[p] > 0 else Color(0.95, 0.5, 0.45)
+		_text(offset, scale, "GeneralLarge", middle,
+			x, CARD_TOP + 28, CARD_SIZE, 28, 0.62, colour, "Centre")
 
-		_bundle.draw_wrapped(_canvas, "GeneralLarge", label,
-			Rect2(box.position + Vector2(0, 56 * scale), Vector2(box.size.x, 26 * scale)),
-			scale * 0.68, colour)
+		# The chosen answer sits in the corner of the portrait, as in the game.
+		if answered:
+			var swatch: Color = COLOURS[_answers[p]] if _phase == Phase.REVEAL else Color(0.55, 0.58, 0.66)
+			_sprite(offset, scale, ANSWER_SPRITES[_answers[p]],
+				x + CARD_SIZE - 24, CARD_TOP + CARD_SIZE - 24, 18, 18,
+				Color.WHITE if _phase == Phase.REVEAL else swatch)
+
+		# The name bar carries the buzz time in the speed round, because that
+		# is what the round is about, and the seat number otherwise.
+		var label := "SPELER %d" % (p + 1)
+		if int(_round.score) == RoundRules.Score.SPEED and answered:
+			label = "%0.2f" % _times[p]
+		_text(offset, scale, "RoundInstructionsSmall", label,
+			x, CARD_TOP + CARD_SIZE + 5, CARD_SIZE, 18, 0.62, Color.WHITE, "Centre")
+
+		# The rosette for where they finished, once the answers are in.
+		if _phase == Phase.REVEAL and _places[p] >= 0:
+			_sprite(offset, scale, PLACE_SPRITES[_places[p]], x - 12, CARD_TOP - 14, 46, 35)
+
+		if bomb and spot:
+			_draw_bomb(offset, scale, x)
+
+
+## The bomb rides with whoever is holding it, and goes off over their card.
+func _draw_bomb(offset: Vector2, scale: float, x: float) -> void:
+	if _burst > 0.0:
+		_sprite(offset, scale, "PIP_flame",
+			x - 28, CARD_TOP - 34, CARD_SIZE + 56, 84, Color(1, 1, 1, minf(_burst, 1.0)))
+		_sprite(offset, scale, "PIP_boom", x - 16, CARD_TOP + 6, CARD_SIZE + 32, 58)
+		return
+
+	_sprite(offset, scale, "PIP_bomb", x + CARD_SIZE - 22, CARD_TOP - 30, 38, 44)
+	# The spark on the fuse quickens as the fuse runs down.
+	if _fuse > 0.0 and fmod(_fuse, maxf(_fuse * 0.12, 0.18)) < 0.09:
+		_sprite(offset, scale, "PIP_spark", x + CARD_SIZE - 4, CARD_TOP - 40, 20, 20)
 
 
 func _draw_scores(offset: Vector2, scale: float) -> void:
-	_bundle.draw_wrapped(_canvas, "ExtraLarge", "SCORES",
-		Rect2(offset + Vector2(0, 60) * scale, Vector2(CANVAS.x, 50) * scale),
-		scale * 0.8, Color.WHITE)
+	_text(offset, scale, "ExtraLarge", "SCORES", 0, 56, PANEL.x, 50, 0.8, Color.WHITE, "Centre")
 
-	for p in range(PLAYERS):
-		var y := 170.0 + p * 60.0
-		_bundle.draw_wrapped(_canvas, "GeneralLarge", "SPELER %d" % (p + 1),
-			Rect2(offset + Vector2(120, y) * scale, Vector2(200, 34) * scale),
-			scale, Color.WHITE, "Left")
-		_bundle.draw_wrapped(_canvas, "GeneralLarge", str(_scores[p]),
-			Rect2(offset + Vector2(320, y) * scale, Vector2(200, 34) * scale),
-			scale, Color.WHITE, "Right")
+	for p in range(_players):
+		var y := 150.0 + p * 62.0
+		_sprite(offset, scale, "ViewportBarGrey", 96, y - 4, 320, 42)
+		_text(offset, scale, "GeneralLarge", "SPELER %d" % (p + 1),
+			112, y, 200, 34, 0.9, Color.WHITE)
+		_text(offset, scale, "GeneralLarge", str(_scores[p]),
+			200, y, 200, 34, 0.9, Color(0.95, 0.88, 0.45), "Right")
 
 
 func _exit_tree() -> void:

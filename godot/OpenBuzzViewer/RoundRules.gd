@@ -38,7 +38,11 @@ enum Score {
 }
 
 const POINTS := 1000
-const SPEED_POINTS := [1000, 750, 500, 250]
+
+## The game prints these on the Wie Is Het Snelst intro screen itself:
+## 1E GOEDE ANTWOORD +400 PTN down to 4E +100, and FOUTE ANTWOORDEN 0 PTN.
+## Read off that screen, not guessed.
+const SPEED_POINTS := [400, 300, 200, 100]
 
 ## Ordered as the game lists them in RoundParameters.
 static func all() -> Array[Dictionary]:
@@ -53,13 +57,14 @@ static func all() -> Array[Dictionary]:
 			id = "fastest_finger", rules = "FastestFinger",
 			input = Mode.ALL, score = Score.SPEED, seconds = 15.0,
 			blurb = "Everyone answers; the quickest correct answer is worth the most.",
-			approximates = "The four speed tiers are a stand-in - the engine awards them, not Lua.",
+			approximates = "",
 		},
 		{
 			id = "quickfire", rules = "Quickfire",
 			input = Mode.BUZZ_THEN_ANSWER, score = Score.FLAT, seconds = 15.0,
-			blurb = "Buzz first, then pick. LookBeforeYouLeap calls AllowSingleContestantToBuzzIn, then AllowActiveContestantToAnswer.",
-			approximates = "",
+			blurb = "The question and answers arrive a letter at a time. Buzz as soon as you think you know, then pick.",
+			reveals = true,
+			approximates = "The reveal finishes about two fifths into the clock, set against the reference shot; the real rate is engine-side.",
 		},
 		{
 			id = "snap", rules = "Snap",

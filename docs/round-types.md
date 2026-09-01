@@ -78,11 +78,18 @@ what the port shows.
 
 Structure and input model come from the game. These do not:
 
-- **Point values.** Awarded by the engine, not by Lua. A flat 1000 stands in,
-  and the speed tiers in Fastest Finger are invented.
+- **Point values.** Awarded by the engine, not by Lua, so a flat 1000 stands in
+  for most rounds. Fastest Finger is the exception: its intro screen prints its
+  own table - 1E GOEDE ANTWOORD +400 PTN down to 4E +100, and FOUTE ANTWOORDEN
+  0 PTN - so those four tiers are read off the game, not invented, and the port
+  draws the same table.
 - **Snap and Trigger Finger content.** The game scrolls its own statements and
   answers on a timer; the port cycles the question's four options instead.
 - **The bomb fuse.** Random between 20 and 40 seconds here.
+- **The Flitsronde reveal rate.** The question and all four answers arrive a
+  letter at a time, every line cut at the same character count, which is what
+  the reference shots show. How fast is a guess: here the last letter lands
+  about two fifths into the clock.
 - **Hot Seat's clock.** Starts at 60 seconds unless a Time Builder round has
   banked some, because rounds do not yet chain into a session.
 
