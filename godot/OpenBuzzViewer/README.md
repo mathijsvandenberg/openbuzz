@@ -51,6 +51,16 @@ is a single file like the other tools.
 
 ## Checking it without looking
 
+`--selftest` drives the model camera with synthetic mouse events and reports
+whether rotating, panning and zooming actually moved anything:
+
+```bash
+dist/obz-viewer.exe -- --selftest       # SELFTEST rotate=ok pan=ok zoom=ok
+```
+
+It exists because a container quietly eating drags looks exactly like no code
+at all, and a screenshot cannot tell the two apart.
+
 `--tab <n> --shot <file>` renders one frame of a tab and exits, which is how
 the build gets verified:
 

@@ -16,6 +16,7 @@ const MAX_ZOOM := 4.0
 @onready var _title: Label = %Title
 @onready var _world: Node3D = %World
 @onready var _camera: Camera3D = %Camera
+@onready var _view: Control = $Viewport
 
 var _paths: Array[String] = []
 var _current: Node3D = null
@@ -179,9 +180,24 @@ func _process(_delta: float) -> void:
 	_camera.look_at(target, Vector3.UP)
 
 
-func _unhandled_input(event: InputEvent) -> void:
+## Camera input is taken in _input rather than _unhandled_input. Controls
+## consume mouse motion for their own hover handling, so by the time an event
+## is "unhandled" the drags are already gone - which is why buttons worked and
+## dragging did nothing at all.
+func _input(event: InputEvent) -> void:
+	# _input fires whether or not this tab is showing, so a drag meant for the
+	# round would otherwise turn a model nobody can see.
+	if not is_visible_in_tree():
+		return
+
 	if event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
+
+		# Only drags that start over the model turn it; a drag on the sidebar
+		# is somebody using the lists.
+		if button.pressed and not _view.get_global_rect().has_point(button.position):
+			return
+
 		match button.button_index:
 			MOUSE_BUTTON_LEFT:
 				_panning = button.pressed
@@ -241,3 +257,54 @@ func _thousands(value: int) -> String:
 		if count % 3 == 0 and i > 0:
 			out = "," + out
 	return out
+
+
+## --selftest drives the camera with synthetic input and reports whether it
+## moved, so the controls can be checked without a hand on the mouse. It exists
+## because a container quietly swallowing drags looks exactly like no code at
+## all.
+func run_self_test() -> void:
+	var centre := _view.get_global_rect().get_center()
+
+	# parse_input_event queues; the event is delivered on a later frame, so
+	# every step has to wait for one.
+	var before_yaw := _yaw
+	await _send(_button(MOUSE_BUTTON_RIGHT, centre, true))
+	await _send(_motion(centre + Vector2(140, 30), Vector2(140, 30)))
+	await _send(_button(MOUSE_BUTTON_RIGHT, centre, false))
+
+	var before_pan := _pan
+	await _send(_button(MOUSE_BUTTON_LEFT, centre, true))
+	await _send(_motion(centre + Vector2(40, 0), Vector2(40, 0)))
+	await _send(_button(MOUSE_BUTTON_LEFT, centre, false))
+
+	var before_zoom := _zoom
+	await _send(_button(MOUSE_BUTTON_WHEEL_UP, centre, true))
+
+	print("SELFTEST rotate=%s pan=%s zoom=%s" % [
+		"ok" if not is_equal_approx(_yaw, before_yaw) else "DEAD",
+		"ok" if _pan.distance_to(before_pan) > 0.0001 else "DEAD",
+		"ok" if not is_equal_approx(_zoom, before_zoom) else "DEAD"])
+
+
+func _button(index: int, at: Vector2, down: bool) -> InputEvent:
+	var event := InputEventMouseButton.new()
+	event.button_index = index
+	event.pressed = down
+	event.position = at
+	event.global_position = at
+	return event
+
+
+func _motion(at: Vector2, relative: Vector2) -> InputEvent:
+	var event := InputEventMouseMotion.new()
+	event.position = at
+	event.global_position = at
+	event.relative = relative
+	return event
+
+
+func _send(event: InputEvent) -> void:
+	Input.parse_input_event(event)
+	await get_tree().process_frame
+	await get_tree().process_frame

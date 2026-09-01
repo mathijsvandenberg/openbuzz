@@ -18,6 +18,23 @@ func _ready() -> void:
 	if tab >= 0 and tab + 1 < args.size():
 		current_tab = clampi(int(args[tab + 1]), 0, get_tab_count() - 1)
 
+	if args.has("--selftest"):
+		current_tab = 0
+		await get_tree().process_frame
+		await get_tree().process_frame
+		await get_child(0).run_self_test()
+
+		# With --shot as well, capture the moved camera so the result can be
+		# seen and not just asserted.
+		var want := args.find("--shot")
+		if want >= 0 and want + 1 < args.size():
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(args[want + 1])
+			print("wrote ", args[want + 1])
+
+		get_tree().quit()
+		return
+
 	var shot := args.find("--shot")
 	if shot >= 0 and shot + 1 < args.size():
 		_shot_path = args[shot + 1]
