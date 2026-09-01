@@ -7,10 +7,12 @@ extends Control
 ## SDL has no gamepad mapping for it, so the buttons are read raw, five per
 ## handset in report order.
 ##
-## The colour order below is the documented Buzz layout. If a handset lights the
-## wrong lamp, this constant is the only thing to change: the panel at the
-## bottom shows the raw button index for whatever is pressed, so a mismatch is
-## visible rather than something to guess at.
+## The report order was measured on the hardware, not assumed:
+##
+##     0  red buzzer      1  yellow      2  green      3  orange      4  blue
+##
+## That is bottom-to-top on the handset, while the answers are listed
+## top-to-bottom on screen, so the four answer buttons map in reverse.
 
 const CANVAS := Vector2(640, 480)
 const PLAYERS := 4
@@ -18,7 +20,11 @@ const BUTTONS_PER_HANDSET := 5
 
 ## Index within a handset, in report order.
 const BUZZ := 0
-const ANSWER_BUTTONS := [1, 2, 3, 4]
+
+## Answer slot per on-screen option, top to bottom: blue, orange, green, yellow.
+const ANSWER_BUTTONS := [4, 3, 2, 1]
+
+const BUTTON_NAMES := ["red", "yellow", "green", "orange", "blue"]
 
 const COLOURS := [
 	Color(0.29, 0.53, 0.91),   # blue
@@ -132,7 +138,7 @@ func _poll_buttons() -> void:
 			var was: bool = _held.get(button, false)
 			_held[button] = down
 			if down and not was:
-				_last_button = "player %d, button %d (raw %d)" % [player + 1, slot, button]
+				_last_button = "player %d, %s (raw %d)" % [player + 1, BUTTON_NAMES[slot], button]
 				_on_press(player, slot)
 
 

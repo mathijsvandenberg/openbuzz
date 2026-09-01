@@ -64,10 +64,19 @@ report. SDL has no gamepad mapping for it, so `Round.gd` reads the buttons raw,
 five per handset in report order, and finds the pad by its vendor and product
 id rather than by name.
 
-**The colour order is the documented layout, not something measured here.** The
-status bar names the handset, the slot and the raw button index for whatever was
-last pressed, so a mismatch shows up immediately; `BUZZ` and `ANSWER_BUTTONS` in
-`Round.gd` are the only things to change.
+Button order within a handset, measured on the hardware:
+
+| raw | button |
+|---|---|
+| 0 | red buzzer |
+| 1 | yellow (bottom) |
+| 2 | green |
+| 3 | orange |
+| 4 | blue (top) |
+
+That is bottom-to-top, while the answers are listed top-to-bottom on screen, so
+`ANSWER_BUTTONS` maps them in reverse. The status bar names the handset, the
+colour and the raw index of the last press, so a mismatch stays visible.
 
 A keyboard stands in when no buzzers are attached: `1`-`4` buzz, then
 `QWER` / `ASDF` / `ZXCV` / `UIOP` answer.
