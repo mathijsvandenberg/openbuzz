@@ -79,6 +79,18 @@ try
         }
 
 
+        case "video":
+        {
+            var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "info";
+            var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "Videos");
+            return sub switch
+            {
+                "info" => VideoCommands.Info(inDir),
+                "split" => VideoCommands.Split(inDir, Opt(args, "--out") ?? Path.Combine(defaultExtract, "ipu")),
+                _ => Fail($"unknown video subcommand '{sub}'"),
+            };
+        }
+
         case "bundle":
             return BundleCommands.Run(defaultExtract,
                        Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d"),
