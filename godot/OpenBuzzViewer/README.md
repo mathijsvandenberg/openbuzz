@@ -16,7 +16,7 @@ in. The rules are read out of the game scripts - see
 dist/obz-viewer.exe
 ```
 
-Drag to orbit, wheel to zoom.
+Left drag pans, right drag rotates the model, wheel zooms.
 
 ## Where the data comes from
 

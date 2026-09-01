@@ -25,7 +25,11 @@ var _radius := 1.0
 var _yaw := 0.0
 var _pitch := -0.12
 var _zoom := 1.0
-var _dragging := false
+
+## Where the camera is looking, offset from the model's centre by panning.
+var _pan := Vector3.ZERO
+var _orbiting := false
+var _panning := false
 
 func _ready() -> void:
 	var dir := _find_models_dir()
@@ -152,6 +156,8 @@ func _frame_model(meshes: Array[Node]) -> void:
 		box = world if first else box.merge(world)
 		first = false
 
+	_pan = Vector3.ZERO
+
 	if first:
 		_centre = Vector3.ZERO
 		_radius = 1.0
@@ -167,23 +173,45 @@ func _process(_delta: float) -> void:
 	var distance := _radius * 2.6 * _zoom
 	var direction := Vector3(
 		sin(_yaw) * cos(_pitch), sin(-_pitch) + CAMERA_HEIGHT, cos(_yaw) * cos(_pitch)).normalized()
-	_camera.position = _centre + direction * distance
-	_camera.look_at(_centre, Vector3.UP)
+
+	var target := _centre + _pan
+	_camera.position = target + direction * distance
+	_camera.look_at(target, Vector3.UP)
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var button := event as InputEventMouseButton
-		if button.button_index == MOUSE_BUTTON_LEFT:
-			_dragging = button.pressed
-		elif button.pressed and button.button_index == MOUSE_BUTTON_WHEEL_UP:
-			_zoom = clampf(_zoom * 0.9, MIN_ZOOM, MAX_ZOOM)
-		elif button.pressed and button.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			_zoom = clampf(_zoom * 1.1, MIN_ZOOM, MAX_ZOOM)
-	elif event is InputEventMouseMotion and _dragging:
-		var motion := event as InputEventMouseMotion
+		match button.button_index:
+			MOUSE_BUTTON_LEFT:
+				_panning = button.pressed
+			MOUSE_BUTTON_RIGHT:
+				_orbiting = button.pressed
+			MOUSE_BUTTON_WHEEL_UP:
+				if button.pressed:
+					_zoom = clampf(_zoom * 0.9, MIN_ZOOM, MAX_ZOOM)
+			MOUSE_BUTTON_WHEEL_DOWN:
+				if button.pressed:
+					_zoom = clampf(_zoom * 1.1, MIN_ZOOM, MAX_ZOOM)
+		return
+
+	if event is not InputEventMouseMotion:
+		return
+
+	var motion := event as InputEventMouseMotion
+
+	if _orbiting:
 		_yaw -= motion.relative.x * 0.01
 		_pitch = clampf(_pitch + motion.relative.y * 0.01, -1.2, 1.2)
+		return
+
+	if _panning:
+		# Pan along the screen, and scale it with the distance so the model
+		# tracks the pointer at any zoom.
+		var basis := _camera.global_transform.basis
+		var speed := _radius * 2.6 * _zoom * 0.0016
+		_pan -= basis.x * motion.relative.x * speed
+		_pan += basis.y * motion.relative.y * speed
 
 
 func _find(node: Node, cls: String) -> Node:
