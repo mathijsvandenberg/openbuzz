@@ -33,7 +33,7 @@ Format work is done for the layers that matter most; nothing renders yet.
 | `.rp2` models | **Solved** - all 968 geometries, plus skeletons, skin weights and 816 animation clips; exported to rigged glTF. See [rw-format.md](docs/rw-format.md). |
 | Fonts | **Solved** - six bitmap fonts per stream: glyph rects, advances, character map; rendering in the round. See [font-format.md](docs/font-format.md). |
 | Godot build | `obz-viewer.exe` - three tabs: models with their clips, the 2D layer in the game fonts, and Point Builder playable on the real USB buzzers with lamps. See [godot/OpenBuzzViewer](godot/OpenBuzzViewer/README.md). |
-| Round types | **Point Builder done**, read from the game scripts. See [round-types.md](docs/round-types.md). |
+| Round types | **All 10 playable and selectable**, input models and rules read from the game scripts; point values approximated. See [round-types.md](docs/round-types.md). |
 | `.pss` / `.ipu` video | Not started - MPEG-2 program stream / Sony IPU |
 | Studio set, lights, cameras | Not started - in the `.rp2` streams, chunks parse but nothing reads the records |
 | Game flow | Not started - front end, character select, a session across rounds |

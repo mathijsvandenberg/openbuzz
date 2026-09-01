@@ -1,21 +1,15 @@
 extends Control
 
-## Point Builder - "Punten verdienen".
+## Plays any of the ten round types on the real buzzers.
 ##
-## The rules come from the game's own scripts rather than from memory.
-## PointsBuilderRound.luaasm calls AllowAllContestantsToAnswer, so every player
-## answers the same question at once - there is no buzzing in - under a
-## ShowCountdownTimer of 15. GenericData.luaasm sets PointsReduceWithTime only
-## for SpeedTimeBuilder, and SinglePlayerRound only for the Time Builder rounds,
-## so here the award is flat and everyone plays.
-##
-## The one number not recovered from the data is the size of that award: it is
-## handed out by the engine, not by Lua. POINTS below is a stand-in.
+## What each round is comes from RoundRules, which reads it out of the game:
+## the input model from <Name>Round.luaasm, the parameters from
+## GenericData.luaasm, and the on-screen title and rules from the game's own
+## text table. This file is the machine that runs them.
 ##
 ## Handset report order, measured on the hardware:
 ##     0  red buzzer   1  yellow   2  green   3  orange   4  blue
-## That is bottom-to-top, while answers are listed top-to-bottom, so the four
-## answer buttons map in reverse.
+## Bottom to top, while answers list top to bottom, so they map in reverse.
 
 const CANVAS := Vector2(640, 480)
 const PLAYERS := 4
@@ -25,12 +19,6 @@ const BUZZ := 0
 const ANSWER_BUTTONS := [4, 3, 2, 1]
 const BUTTON_NAMES := ["red", "yellow", "green", "orange", "blue"]
 
-## ShowCountdownTimer is called with 15 in PointsBuilderRound.
-const ANSWER_SECONDS := 15.0
-
-## Not in the scripts - the engine awards it. A stand-in.
-const POINTS := 1000
-
 const COLOURS := [
 	Color(0.29, 0.53, 0.91),   # blue
 	Color(0.95, 0.60, 0.16),   # orange
@@ -38,30 +26,44 @@ const COLOURS := [
 	Color(0.96, 0.85, 0.20),   # yellow
 ]
 
-enum Phase { INTRO, ANSWERING, REVEAL, SCORES, FINISHED }
+const CHASE_STEP := 0.16
+const CUE_STEP := 1.0
+
+enum Phase { INTRO, PLAYING, PICKING, REVEAL, DONE }
 
 @onready var _canvas: Control = %RoundCanvas
 @onready var _status: Label = %RoundStatus
 @onready var _audio: AudioStreamPlayer = %Audio
+@onready var _list: ItemList = %Rounds
+@onready var _blurb: Label = %Blurb
 
 var _bundle := Bundle.new()
 var _lamps := Lamps.new()
 var _pad := -1
 var _held := {}
+var _demo := false
 
+var _round: Dictionary = {}
 var _questions: Array = []
 var _index := 0
 var _phase: int = Phase.INTRO
+
 var _answers := [-1, -1, -1, -1]
+var _times := [0.0, 0.0, 0.0, 0.0]
 var _scores := [0, 0, 0, 0]
 var _awarded := [0, 0, 0, 0]
+var _banked := [0.0, 0.0, 0.0, 0.0]
+
+var _active := 0          ## whose turn, for ACTIVE and CHASE rounds
+var _winner := -1         ## who won a buzz race
+var _cue := -1            ## which option BUZZ_ON_CUE is showing
+var _cue_clock := 0.0
+var _chase_clock := 0.0
+var _fuse := 0.0
 var _clock := 0.0
 var _wav_dir := ""
 var _last_button := ""
-
-## --demo plays itself, so the phases can be captured without a person at the
-## buzzers. Verification only; it changes nothing about how the round runs.
-var _demo := false
+var _note := ""
 
 
 func _ready() -> void:
@@ -77,13 +79,25 @@ func _ready() -> void:
 	_questions.shuffle()
 	_wav_dir = _bundle.dir.get_base_dir().path_join("wav")
 	_canvas.draw.connect(_draw_round)
+
+	for r in RoundRules.all():
+		_list.add_item(RoundRules.title(r, _bundle.text))
+	_list.item_selected.connect(_select_round)
+
 	_find_pad()
 	_lamps.start(Bundle.base_dir())
 	_demo = OS.get_cmdline_user_args().has("--demo")
-	if _demo:
-		_start_question()
-	else:
-		_enter_intro()
+
+	var start := 0
+	var args := OS.get_cmdline_user_args()
+	var at := args.find("--round")
+	if at >= 0 and at + 1 < args.size():
+		for i in range(RoundRules.all().size()):
+			if RoundRules.all()[i].id == args[at + 1]:
+				start = i
+
+	_list.select(start)
+	_select_round(start)
 
 
 func _find_pad() -> void:
@@ -99,21 +113,46 @@ func _find_pad() -> void:
 		_pad = pads[0]
 
 
-func _enter_intro() -> void:
+func _select_round(index: int) -> void:
+	_round = RoundRules.all()[index]
+	_blurb.text = "  " + str(_round.blurb) + (
+		"\n\n  Approximated: " + str(_round.approximates) if _round.approximates != "" else "")
+	_scores = [0, 0, 0, 0]
+	_banked = [0.0, 0.0, 0.0, 0.0]
+	_index = 0
+	_active = 0
+	_note = ""
 	_phase = Phase.INTRO
-	_clock = 0.0
+	_audio.stop()
 	_lamps.all(true)
+	if _demo:
+		_start_question()
 
 
 func _start_question() -> void:
-	_phase = Phase.ANSWERING
+	_phase = Phase.PLAYING
 	_answers = [-1, -1, -1, -1]
+	_times = [0.0, 0.0, 0.0, 0.0]
 	_awarded = [0, 0, 0, 0]
-	_clock = ANSWER_SECONDS
+	_winner = -1
+	_cue = -1
+	_cue_clock = 0.0
+	_chase_clock = 0.0
+	_clock = float(_round.seconds)
+	_note = ""
 
-	# Everyone is live, so every lamp is lit; a lamp goes out once that player
-	# has locked an answer in.
-	_lamps.all(true)
+	match int(_round.input):
+		RoundRules.Mode.ALL, RoundRules.Mode.BUZZ_THEN_ANSWER:
+			_lamps.all(true)
+		RoundRules.Mode.BUZZ_ON_CUE:
+			_lamps.all(true)
+		RoundRules.Mode.ACTIVE:
+			_lamps.only(_active)
+		RoundRules.Mode.CHASE:
+			_lamps.only(_active)
+
+	if int(_round.score) == RoundRules.Score.BOMB and _fuse <= 0.0:
+		_fuse = randf_range(20.0, 40.0)
 
 	var q: Dictionary = _questions[_index]
 	var path := _wav_dir.path_join("%s.wav" % str(q["clip"]))
@@ -124,61 +163,163 @@ func _start_question() -> void:
 			_audio.play()
 
 
-func _finish_question() -> void:
+func _process(delta: float) -> void:
+	_poll_buttons()
+
+	if _phase == Phase.PLAYING:
+		_clock -= delta
+		_advance(delta)
+	elif _phase == Phase.REVEAL:
+		_clock -= delta
+		if _clock <= 0.0:
+			_next_question()
+
+	_canvas.queue_redraw()
+	_status.text = "%s   |   %s   |   pad %s   |   lamps %s   |   %s" % [
+		str(_round.get("id", "-")), _phase_name(),
+		"none" if _pad < 0 else str(_pad),
+		"on" if _lamps.available else _lamps.reason, _last_button]
+
+
+## Everything that ticks while a question is live, per input model.
+func _advance(delta: float) -> void:
+	match int(_round.input):
+		RoundRules.Mode.ALL:
+			if _demo:
+				for p in range(PLAYERS):
+					if _answers[p] == -1 and _clock < float(_round.seconds) - 0.4 - p * 0.3:
+						_answer(p, p % 4)
+			if not _answers.has(-1) or _clock <= 0.0:
+				_finish()
+
+		RoundRules.Mode.BUZZ_THEN_ANSWER:
+			if _demo and _winner < 0 and _clock < float(_round.seconds) - 0.5:
+				_press(1, BUZZ)
+			elif _demo and _winner >= 0 and _clock < float(_round.seconds) - 1.2:
+				_answer(_winner, 0)
+			if _clock <= 0.0:
+				_finish()
+
+		RoundRules.Mode.BUZZ_ON_CUE:
+			_cue_clock -= delta
+			if _cue_clock <= 0.0:
+				_cue = (_cue + 1) % 4
+				_cue_clock = CUE_STEP
+			if _demo and _clock < float(_round.seconds) - 2.0:
+				_press(2, BUZZ)
+			if _clock <= 0.0:
+				_finish()
+
+		RoundRules.Mode.ACTIVE:
+			if int(_round.score) == RoundRules.Score.BOMB:
+				_fuse -= delta
+				if _fuse <= 0.0:
+					_explode()
+					return
+			if _demo and _clock < float(_round.seconds) - 0.6:
+				_answer(_active, 0)
+			if _clock <= 0.0:
+				_finish()
+
+		RoundRules.Mode.CHASE:
+			# The lamp travels while the clip plays; the music stopping fixes it.
+			_chase_clock -= delta
+			if _chase_clock <= 0.0:
+				_active = (_active + 1) % PLAYERS
+				_lamps.only(_active)
+				_chase_clock = CHASE_STEP
+			if not _audio.playing or _clock <= 0.0:
+				_phase = Phase.PICKING
+				_clock = 15.0
+				_lamps.only(_active)
+				_note = "SPELER %d" % (_active + 1)
+
+
+func _next_question() -> void:
+	_index += 1
+	if _index >= _questions.size():
+		_phase = Phase.DONE
+		_lamps.all(false)
+		return
+
+	# Whose turn it is next, for the rounds that rotate.
+	if int(_round.input) == RoundRules.Mode.ACTIVE:
+		_active = (_active + 1) % PLAYERS
+
+	# Hot Seat stays with one player until their clock runs out.
+	if int(_round.score) == RoundRules.Score.STAKE:
+		_active = 0
+		if _banked[0] <= 0.0:
+			_phase = Phase.DONE
+			_lamps.all(false)
+			return
+
+	_start_question()
+
+
+func _finish() -> void:
 	_phase = Phase.REVEAL
 	_clock = 3.0
 	_audio.stop()
 	_lamps.all(false)
 
 	var correct := int(_questions[_index]["correct"])
-	for p in range(PLAYERS):
-		if _answers[p] == correct:
-			_awarded[p] = POINTS
-			_scores[p] += POINTS
+
+	match int(_round.score):
+		RoundRules.Score.FLAT:
+			for p in range(PLAYERS):
+				if _answers[p] == correct:
+					_awarded[p] = RoundRules.POINTS
+					_scores[p] += RoundRules.POINTS
+
+		RoundRules.Score.SPEED:
+			# Ranked by how quickly the correct answer came in.
+			var right := []
+			for p in range(PLAYERS):
+				if _answers[p] == correct:
+					right.append({p = p, t = _times[p]})
+			right.sort_custom(func(a, b): return a.t < b.t)
+			for rank in range(right.size()):
+				var pts: int = RoundRules.SPEED_POINTS[mini(rank, RoundRules.SPEED_POINTS.size() - 1)]
+				_awarded[right[rank].p] = pts
+				_scores[right[rank].p] += pts
+
+		RoundRules.Score.STEAL:
+			if _winner >= 0 and _answers[_winner] == correct:
+				_phase = Phase.PICKING
+				_clock = 10.0
+				_note = "PAK PUNTEN AF"
+				_lamps.only(_winner)
+				return
+
+		RoundRules.Score.TIME:
+			# Time left on the clock becomes time banked for Hot Seat.
+			if _answers[_active] == correct:
+				_banked[_active] += maxf(_clock, 0.0)
+				_awarded[_active] = int(maxf(_clock, 0.0))
+
+		RoundRules.Score.STAKE:
+			if _answers[_active] == correct:
+				_awarded[_active] = RoundRules.POINTS
+				_scores[_active] += RoundRules.POINTS
+			_banked[_active] = maxf(_banked[_active] - (float(_round.seconds) - _clock), 0.0)
+
+		RoundRules.Score.BOMB:
+			if _answers[_active] == correct:
+				_note = "DOORGEVEN"
 
 
-func _process(delta: float) -> void:
-	_poll_buttons()
-	_clock -= delta
-
-	match _phase:
-		Phase.ANSWERING:
-			if _demo and _clock < ANSWER_SECONDS - 0.5:
-				for p in range(PLAYERS):
-					if _answers[p] == -1:
-						_on_press(p, ANSWER_BUTTONS[p % 4])
-			# The timer ends the question, and so does everyone answering.
-			if _clock <= 0.0 or not _answers.has(-1):
-				_finish_question()
-		Phase.REVEAL:
-			if _clock <= 0.0:
-				_phase = Phase.SCORES
-				_clock = 3.0
-		Phase.SCORES:
-			if _clock <= 0.0:
-				_index += 1
-				if _index >= _questions.size():
-					_phase = Phase.FINISHED
-					_lamps.all(false)
-				else:
-					_start_question()
-
-	_canvas.queue_redraw()
-	_status.text = "%s   |   pad %s   |   lamps %s   |   %s" % [
-		_phase_name(), "none" if _pad < 0 else str(_pad),
-		"on" if _lamps.available else _lamps.reason, _last_button]
+func _explode() -> void:
+	_phase = Phase.REVEAL
+	_clock = 3.0
+	_audio.stop()
+	_lamps.all(false)
+	_scores[_active] -= RoundRules.POINTS
+	_awarded[_active] = -RoundRules.POINTS
+	_note = "BOEM"
+	_fuse = randf_range(20.0, 40.0)
 
 
-func _phase_name() -> String:
-	match _phase:
-		Phase.INTRO: return "press any answer button to start"
-		Phase.ANSWERING: return "answering - %0.1fs" % maxf(_clock, 0.0)
-		Phase.REVEAL: return "revealing"
-		Phase.SCORES: return "scores"
-		_: return "finished"
-
-
-## Edge-detects every handset button, so a held button fires once.
 func _poll_buttons() -> void:
 	if _pad < 0:
 		return
@@ -190,34 +331,105 @@ func _poll_buttons() -> void:
 			_held[button] = down
 			if down and not was:
 				_last_button = "player %d, %s (raw %d)" % [player + 1, BUTTON_NAMES[slot], button]
-				_on_press(player, slot)
+				_press(player, slot)
 
 
-func _on_press(player: int, slot: int) -> void:
+func _press(player: int, slot: int) -> void:
 	if _phase == Phase.INTRO:
 		_start_question()
 		return
 
-	if _phase != Phase.ANSWERING:
+	if _phase == Phase.PICKING:
+		_picked(player, slot)
 		return
 
+	if _phase != Phase.PLAYING:
+		return
+
+	var choice := ANSWER_BUTTONS.find(slot)
+
+	match int(_round.input):
+		RoundRules.Mode.ALL:
+			if choice >= 0:
+				_answer(player, choice)
+
+		RoundRules.Mode.BUZZ_THEN_ANSWER:
+			if slot == BUZZ and _winner < 0:
+				_winner = player
+				_audio.stop()
+				_lamps.only(player)
+			elif choice >= 0 and player == _winner:
+				_answer(player, choice)
+				_finish()
+
+		RoundRules.Mode.BUZZ_ON_CUE:
+			# Buzzing claims whichever option is showing at that moment.
+			if slot == BUZZ and _winner < 0 and _cue >= 0:
+				_winner = player
+				_answer(player, _cue)
+				_finish()
+
+		RoundRules.Mode.ACTIVE:
+			if choice >= 0 and player == _active:
+				_answer(player, choice)
+				_finish()
+
+		RoundRules.Mode.CHASE:
+			pass   # nothing is live until the music stops
+
+
+## The second press some rounds need: Off Loader picks a victim, Trigger Finger
+## picks who to take points from, and Chase is the caught player answering.
+func _picked(player: int, slot: int) -> void:
 	var choice := ANSWER_BUTTONS.find(slot)
 	if choice < 0:
 		return
 
-	# First answer stands; there is no changing it.
-	if _answers[player] != -1:
+	if int(_round.score) == RoundRules.Score.STEAL:
+		if player != _winner:
+			return
+		var victim := choice
+		if victim == _winner:
+			return
+		var taken: int = mini(_scores[victim], RoundRules.POINTS)
+		_scores[victim] -= taken
+		_scores[_winner] += taken
+		_awarded[_winner] = taken
+		_awarded[victim] = -taken
+		_phase = Phase.REVEAL
+		_clock = 3.0
+		_note = "AFGEPAKT VAN SPELER %d" % (victim + 1)
 		return
 
+	# Chase: the player the lamp stopped on answers.
+	if int(_round.input) == RoundRules.Mode.CHASE:
+		if player != _active:
+			return
+		_answer(player, choice)
+		_finish()
+
+
+func _answer(player: int, choice: int) -> void:
+	if _answers[player] != -1:
+		return
 	_answers[player] = choice
-	_lamps.set_lamps([_answers[0] == -1, _answers[1] == -1, _answers[2] == -1, _answers[3] == -1])
+	_times[player] = float(_round.seconds) - _clock
+
+	if int(_round.input) == RoundRules.Mode.ALL:
+		_lamps.set_lamps([_answers[0] == -1, _answers[1] == -1, _answers[2] == -1, _answers[3] == -1])
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Keyboard stands in: QWER / ASDF / ZXCV / UIOP answer.
 	if not (event is InputEventKey and event.pressed and not event.echo):
 		return
 	var key: int = event.keycode
+
+	const BUZZ_KEYS := [KEY_1, KEY_2, KEY_3, KEY_4]
+	var at := BUZZ_KEYS.find(key)
+	if at >= 0:
+		_press(at, BUZZ)
+		return
+
 	const ANSWER_KEYS := [
 		[KEY_Q, KEY_W, KEY_E, KEY_R],
 		[KEY_A, KEY_S, KEY_D, KEY_F],
@@ -227,9 +439,20 @@ func _unhandled_input(event: InputEvent) -> void:
 	for player in range(PLAYERS):
 		var slot: int = ANSWER_KEYS[player].find(key)
 		if slot >= 0:
-			_on_press(player, ANSWER_BUTTONS[slot])
+			_press(player, ANSWER_BUTTONS[slot])
 			return
 
+
+func _phase_name() -> String:
+	match _phase:
+		Phase.INTRO: return "press a button to start"
+		Phase.PLAYING: return "playing - %0.1fs" % maxf(_clock, 0.0)
+		Phase.PICKING: return "waiting for a pick"
+		Phase.REVEAL: return "revealing"
+		_: return "finished"
+
+
+# ---------------------------------------------------------------- drawing
 
 func _draw_round() -> void:
 	var view := _canvas.size
@@ -237,54 +460,64 @@ func _draw_round() -> void:
 	var offset := (view - CANVAS * scale) * 0.5
 	_canvas.draw_rect(Rect2(offset, CANVAS * scale), Color(0.07, 0.08, 0.11))
 
-	if _questions.is_empty():
+	if _questions.is_empty() or _round.is_empty():
 		return
 
 	match _phase:
 		Phase.INTRO:
 			_draw_intro(offset, scale)
-		Phase.FINISHED:
-			_bundle.draw_wrapped(_canvas, "ExtraLarge", "EINDE",
-				Rect2(offset, CANVAS * scale), scale, Color.WHITE)
-		Phase.SCORES:
+		Phase.DONE:
 			_draw_scores(offset, scale)
 		_:
 			_draw_question(offset, scale)
 			_draw_podiums(offset, scale)
 
 
-## The round title and its rule line, in the fonts the A2D bindings name for
-## them - RoundInstructionsLarge and RoundInstructionsSmall.
 func _draw_intro(offset: Vector2, scale: float) -> void:
 	_bundle.draw_wrapped(_canvas, "RoundInstructionsLarge",
-		str(_bundle.text.get("RulesPointsBuilderTitle", "PUNTEN VERDIENEN")),
-		Rect2(offset + Vector2(40, 110) * scale, Vector2(CANVAS.x - 80, 60) * scale),
-		scale * 1.25, Color.WHITE)
+		RoundRules.title(_round, _bundle.text),
+		Rect2(offset + Vector2(30, 96) * scale, Vector2(CANVAS.x - 60, 60) * scale),
+		scale * 1.2, Color.WHITE)
 
-	_bundle.draw_wrapped(_canvas, "RoundInstructionsSmall",
-		str(_bundle.text.get("RulesPointsBuilderLine1", "")),
-		Rect2(offset + Vector2(80, 210) * scale, Vector2(CANVAS.x - 160, 90) * scale),
-		scale, Color(0.82, 0.84, 0.9))
+	var y := 190.0
+	for line in RoundRules.lines(_round, _bundle.text):
+		_bundle.draw_wrapped(_canvas, "RoundInstructionsSmall", line,
+			Rect2(offset + Vector2(70, y) * scale, Vector2(CANVAS.x - 140, 60) * scale),
+			scale * 0.95, Color(0.82, 0.84, 0.9))
+		y += 70.0
 
 
 func _draw_question(offset: Vector2, scale: float) -> void:
 	var q: Dictionary = _questions[_index]
 	var correct := int(q["correct"])
+	var on_cue := int(_round.input) == RoundRules.Mode.BUZZ_ON_CUE
 
 	_bundle.draw_wrapped(_canvas, "GeneralLarge",
 		"%d. %s" % [_index + 1, str(q["question"])],
-		Rect2(offset + Vector2(40, 18) * scale, Vector2(CANVAS.x - 80, 70) * scale),
-		scale, Color.WHITE)
+		Rect2(offset + Vector2(36, 14) * scale, Vector2(CANVAS.x - 72, 66) * scale),
+		scale * 0.95, Color.WHITE)
 
-	if _phase == Phase.ANSWERING:
-		_canvas.draw_rect(Rect2(offset + Vector2(40, 98) * scale,
-			Vector2((CANVAS.x - 80) * clampf(_clock / ANSWER_SECONDS, 0.0, 1.0), 5) * scale),
+	if _phase == Phase.PLAYING:
+		var span := maxf(float(_round.seconds), 0.001)
+		_canvas.draw_rect(Rect2(offset + Vector2(36, 92) * scale,
+			Vector2((CANVAS.x - 72) * clampf(_clock / span, 0.0, 1.0), 5) * scale),
 			Color(0.85, 0.78, 0.25))
+
+	if int(_round.score) == RoundRules.Score.BOMB and _phase == Phase.PLAYING:
+		_bundle.draw_wrapped(_canvas, "RoundInstructionsSmall", "BOM  %0.0f" % maxf(_fuse, 0.0),
+			Rect2(offset + Vector2(CANVAS.x - 160, 100) * scale, Vector2(130, 24) * scale),
+			scale * 0.8, Color(0.95, 0.5, 0.35), "Right")
 
 	var options: Array = q["options"]
 	for i in range(options.size()):
-		var y := 140.0 + i * 50.0
-		var swatch := Rect2(offset + Vector2(60, y) * scale, Vector2(32, 32) * scale)
+		var y := 132.0 + i * 48.0
+
+		# On-cue rounds show one option at a time; the rest show all four.
+		var visible := (not on_cue) or _phase != Phase.PLAYING or i == _cue
+		if not visible:
+			continue
+
+		var swatch := Rect2(offset + Vector2(56, y) * scale, Vector2(30, 30) * scale)
 		_canvas.draw_rect(swatch, Color(0.07, 0.09, 0.12))
 		_canvas.draw_rect(swatch, COLOURS[i], false, 3.0 * scale)
 
@@ -293,41 +526,51 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 			tint = Color(0.59, 1.0, 0.67) if i == correct else Color(0.55, 0.58, 0.64)
 
 		_bundle.draw_wrapped(_canvas, "GeneralLarge", str(options[i]),
-			Rect2(offset + Vector2(108, y - 4) * scale, Vector2(CANVAS.x - 150, 40) * scale),
-			scale * 0.9, tint, "Left")
+			Rect2(offset + Vector2(102, y - 4) * scale, Vector2(CANVAS.x - 140, 38) * scale),
+			scale * 0.85, tint, "Left")
+
+	if _note != "":
+		_bundle.draw_wrapped(_canvas, "ExtraLarge", _note,
+			Rect2(offset + Vector2(0, 322) * scale, Vector2(CANVAS.x, 36) * scale),
+			scale * 0.55, Color(0.95, 0.83, 0.35))
 
 
-## One podium per player. During the question only the fact of an answer shows,
-## never which one - that is what stops the table copying each other.
 func _draw_podiums(offset: Vector2, scale: float) -> void:
 	var correct := int(_questions[_index]["correct"])
+	var live := int(_round.input) in [RoundRules.Mode.ACTIVE, RoundRules.Mode.CHASE]
+	var banks := int(_round.score) in [RoundRules.Score.TIME, RoundRules.Score.STAKE]
 
 	for p in range(PLAYERS):
-		var box := Rect2(offset + Vector2(48 + p * 140, 372) * scale, Vector2(120, 84) * scale)
+		var box := Rect2(offset + Vector2(44 + p * 140, 372) * scale, Vector2(124, 88) * scale)
 		var answered: bool = _answers[p] != -1
-		_canvas.draw_rect(box, Color(0.13, 0.15, 0.2) if answered else Color(0.10, 0.11, 0.14))
-		_canvas.draw_rect(box, Color(0.38, 0.4, 0.48), false, 1.0 * scale)
+		var spot: bool = (live and p == _active) or (_winner == p)
+
+		_canvas.draw_rect(box, Color(0.20, 0.17, 0.10) if spot else (
+			Color(0.13, 0.15, 0.2) if answered else Color(0.10, 0.11, 0.14)))
+		_canvas.draw_rect(box, Color(0.85, 0.7, 0.3) if spot else Color(0.38, 0.4, 0.48),
+			false, (2.0 if spot else 1.0) * scale)
 
 		_bundle.draw_wrapped(_canvas, "RoundInstructionsSmall", "SPELER %d" % (p + 1),
 			Rect2(box.position + Vector2(0, 4 * scale), Vector2(box.size.x, 18 * scale)),
-			scale * 0.75, Color.WHITE)
+			scale * 0.72, Color.WHITE)
 
 		if answered:
-			var swatch := Rect2(box.position + Vector2(box.size.x * 0.5 - 11 * scale, 28 * scale),
+			var swatch := Rect2(box.position + Vector2(box.size.x * 0.5 - 11 * scale, 26 * scale),
 				Vector2(22, 22) * scale)
 			_canvas.draw_rect(swatch,
 				COLOURS[_answers[p]] if _phase == Phase.REVEAL else Color(0.55, 0.58, 0.66))
 
-		if _phase == Phase.REVEAL:
-			var right: bool = _answers[p] == correct
-			_bundle.draw_wrapped(_canvas, "GeneralLarge",
-				("+%d" % _awarded[p]) if right else "-",
-				Rect2(box.position + Vector2(0, 56 * scale), Vector2(box.size.x, 24 * scale)),
-				scale * 0.7, Color(0.6, 1.0, 0.7) if right else Color(0.7, 0.42, 0.42))
-		else:
-			_bundle.draw_wrapped(_canvas, "GeneralLarge", str(_scores[p]),
-				Rect2(box.position + Vector2(0, 56 * scale), Vector2(box.size.x, 24 * scale)),
-				scale * 0.7, Color.WHITE)
+		var label := str(_scores[p])
+		var colour := Color.WHITE
+		if banks:
+			label = "%0.0fs" % _banked[p]
+		if _phase == Phase.REVEAL and _awarded[p] != 0:
+			label = ("+%d" % _awarded[p]) if _awarded[p] > 0 else str(_awarded[p])
+			colour = Color(0.6, 1.0, 0.7) if _awarded[p] > 0 else Color(0.95, 0.5, 0.45)
+
+		_bundle.draw_wrapped(_canvas, "GeneralLarge", label,
+			Rect2(box.position + Vector2(0, 56 * scale), Vector2(box.size.x, 26 * scale)),
+			scale * 0.68, colour)
 
 
 func _draw_scores(offset: Vector2, scale: float) -> void:

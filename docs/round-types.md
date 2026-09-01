@@ -45,18 +45,55 @@ The on-screen strings come from the text map: `RulesPointsBuilderTitle` is
 `RoundInstructionsLarge` and `RoundInstructionsSmall` - the styles the A2D
 bindings name for them.
 
-## The rest
+## All ten
 
-Not started. Each has its script pair to read the same way:
+Every entry below is corroborated three ways: the input call in
+`<Name>Round.luaasm`, the parameters in `GenericData.luaasm`, and the game's own
+`Rules<Name>*` strings shown on the round intro.
 
-| Round | Script |
-|---|---|
-| Fastest Finger | `FastestFingerRound` |
-| Point Stealer | `PointStealerRound` |
-| Time Builder | `TimeBuilderRound` |
-| Speed Time Builder | `SpeedTimeBuilderRound` |
-| Pass the Bomb | `PassTheBomb*` |
-| Look Before You Leap | round id in `GenericData` |
+| Round (game's own title) | Script | Input call | Parameters |
+|---|---|---|---|
+| PUNTEN VERDIENEN | `PointsBuilder` | AllowAllContestantsToAnswer | InputAnswers |
+| WIE IS HET SNELST | `FastestFingerFirst` | AllowAllContestantsToAnswer | InputAnswers |
+| FLITSRONDE | `LookBeforeYouLeap` | AllowSingleContestantToBuzzIn, then AllowActiveContestantToAnswer | InputBuzzer then InputAnswers |
+| LEG HET VERBAND | `Snap` | AllowAllContestantsToAnswer | InputBuzzer |
+| HAND AAN DE KNOP | `PointStealer` | AllowAllContestantsToAnswer | InputBuzzer |
+| WAAR STOPT DE ZOEMER | `BuzzStop` | AllowActiveContestantToAnswer, GetContestantBuzzerPresses | InputAnswers |
+| AFSCHUIVEN | `OffLoader` | AllowActiveContestantToAnswer | InputAnswers twice |
+| WIE HEEFT DE BOM | `PassTheBomb` | AllowActiveContestantToAnswer | InputAnswers |
+| TIJD VERDIENEN | `TimeBuilder` | AllowAllContestantsToAnswer | SinglePlayerRound |
+| OP DE STOEL | `HotSeat` | AllowActiveContestantToAnswer | InputAnswers, InputBuzzer |
 
-`SpeedTimeBuilder` sets `PointsReduceWithTime`, so that one does have a speed
-curve; the two Time Builder rounds set `SinglePlayerRound`.
+`SpeedTimeBuilder` is the one round that sets `PointsReduceWithTime`, so it is
+the only one with a genuine speed curve in the parameters; `TimeBuilder` and
+`SpeedTimeBuilder` are the two that set `SinglePlayerRound`.
+
+Note the internal names and the shown titles disagree: `PointStealer` is
+"HAND AAN DE KNOP" (Trigger Finger) and `LookBeforeYouLeap` is "FLITSRONDE"
+(Quickfire). The `RoundNameText` parameter points at a `RoundName*` key for each,
+though none of those keys resolve yet - the `Rules*Title` keys do, and those are
+what the port shows.
+
+## Where the port approximates
+
+Structure and input model come from the game. These do not:
+
+- **Point values.** Awarded by the engine, not by Lua. A flat 1000 stands in,
+  and the speed tiers in Fastest Finger are invented.
+- **Snap and Trigger Finger content.** The game scrolls its own statements and
+  answers on a timer; the port cycles the question's four options instead.
+- **The bomb fuse.** Random between 20 and 40 seconds here.
+- **Hot Seat's clock.** Starts at 60 seconds unless a Time Builder round has
+  banked some, because rounds do not yet chain into a session.
+
+Each of these is named on screen in the round's own panel, so nothing passes as
+recovered when it is not.
+
+## Playing them
+
+`obz-viewer.exe`, Round tab; the list on the left switches type. `--round <id>`
+picks one at startup and `--demo` plays it hands-free:
+
+```bash
+obz-viewer.exe -- --tab 2 --round buzz_stop --demo
+```
