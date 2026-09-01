@@ -32,7 +32,8 @@ Format work is done for the layers that matter most; nothing renders yet.
 | A2D animations | **Solved** - 176 animations, 21030 keyframes exported to JSON. See [a2d-format.md](docs/a2d-format.md). |
 | `.rp2` models | **Solved** - all 968 geometries, plus skeletons, skin weights and 816 animation clips; exported to rigged glTF. See [rw-format.md](docs/rw-format.md). |
 | Fonts | **Solved** - six bitmap fonts per stream: glyph rects, advances, character map; rendering in the round. See [font-format.md](docs/font-format.md). |
-| Godot build | `obz-viewer.exe` - three tabs: models with their clips, the 2D layer in the game fonts, and a round playable on the real USB buzzers. See [godot/OpenBuzzViewer](godot/OpenBuzzViewer/README.md). |
+| Godot build | `obz-viewer.exe` - three tabs: models with their clips, the 2D layer in the game fonts, and Point Builder playable on the real USB buzzers with lamps. See [godot/OpenBuzzViewer](godot/OpenBuzzViewer/README.md). |
+| Round types | **Point Builder done**, read from the game scripts. See [round-types.md](docs/round-types.md). |
 | `.pss` / `.ipu` video | Not started - MPEG-2 program stream / Sony IPU |
 | Real Buzz HID | Not started - USB HID, Sony VID `0x054C` |
 

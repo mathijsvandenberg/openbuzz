@@ -7,8 +7,10 @@ Two tabs, built with Godot 4.7.2 (.NET).
 **2D layer** - the A2D timelines, drawn with the game's own atlas sprites and
 bitmap fonts. Space pauses.
 
-**Round** - a playable round on the real buzzers. A clip plays, someone hits
-their red button, that player picks a colour. Right answer +1, wrong -1.
+**Round** - Point Builder, "Punten verdienen", on the real buzzers. All four
+players answer the same question at once under a 15-second timer; nobody buzzes
+in. The rules are read out of the game scripts - see
+[round-types.md](../../docs/round-types.md).
 
 ```bash
 dist/obz-viewer.exe
@@ -78,8 +80,11 @@ That is bottom-to-top, while the answers are listed top-to-bottom on screen, so
 `ANSWER_BUTTONS` maps them in reverse. The status bar names the handset, the
 colour and the raw index of the last press, so a mismatch stays visible.
 
-A keyboard stands in when no buzzers are attached: `1`-`4` buzz, then
-`QWER` / `ASDF` / `ZXCV` / `UIOP` answer.
+A keyboard stands in when no buzzers are attached: `QWER` / `ASDF` / `ZXCV` /
+`UIOP`, one row per player.
+
+`--demo` plays the round by itself, which is how the screenshots of the later
+phases were taken.
 
 ## Lamps
 
