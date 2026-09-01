@@ -40,6 +40,7 @@ enum Phase { LISTENING, BUZZED, REVEAL, FINISHED }
 @onready var _audio: AudioStreamPlayer = %Audio
 
 var _bundle := Bundle.new()
+var _lamps := Lamps.new()
 var _pad := -1
 var _held := {}
 
@@ -52,6 +53,7 @@ var _scores := [0, 0, 0, 0]
 var _hold := 0.0
 var _wav_dir := ""
 var _last_button := ""
+var _flash := 0.0
 
 
 func _ready() -> void:
@@ -68,6 +70,7 @@ func _ready() -> void:
 	_wav_dir = _bundle.dir.get_base_dir().path_join("wav")
 	_canvas.draw.connect(_draw_round)
 	_find_pad()
+	_lamps.start(Bundle.base_dir())
 	_start_question()
 
 
@@ -91,6 +94,9 @@ func _start_question() -> void:
 	_chosen = -1
 	_hold = 0.0
 
+	# All four lit is the invitation to buzz.
+	_lamps.all(true)
+
 	var q: Dictionary = _questions[_index]
 	var path := _wav_dir.path_join("%s.wav" % str(q["clip"]))
 	if FileAccess.file_exists(path):
@@ -106,16 +112,29 @@ func _process(delta: float) -> void:
 
 	if _phase == Phase.REVEAL:
 		_hold -= delta
+		_flash += delta
+
+		# A right answer blinks the lamp, a wrong one leaves it dark.
+		if _chosen == int(_questions[_index]["correct"]):
+			if fmod(_flash, 0.3) < 0.15:
+				_lamps.only(_buzzed)
+			else:
+				_lamps.all(false)
+		else:
+			_lamps.all(false)
+
 		if _hold <= 0.0:
 			_index += 1
 			if _index >= _questions.size():
 				_phase = Phase.FINISHED
+				_lamps.all(false)
 			else:
 				_start_question()
 
 	_canvas.queue_redraw()
-	_status.text = "%s   |   pad %s   |   %s" % [
-		_phase_name(), "none" if _pad < 0 else str(_pad), _last_button]
+	_status.text = "%s   |   pad %s   |   lamps %s   |   %s" % [
+		_phase_name(), "none" if _pad < 0 else str(_pad),
+		"on" if _lamps.available else _lamps.reason, _last_button]
 
 
 func _phase_name() -> String:
@@ -147,6 +166,7 @@ func _on_press(player: int, slot: int) -> void:
 		_buzzed = player
 		_phase = Phase.BUZZED
 		_audio.stop()
+		_lamps.only(player)
 		return
 
 	if _phase == Phase.BUZZED and player == _buzzed:
@@ -158,6 +178,7 @@ func _on_press(player: int, slot: int) -> void:
 		_scores[player] += 1 if choice == correct else -1
 		_phase = Phase.REVEAL
 		_hold = 3.0
+		_flash = 0.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -236,3 +257,8 @@ func _draw_round() -> void:
 		_bundle.draw_wrapped(_canvas, "GeneralLarge", str(_scores[p]),
 			Rect2(box.position + Vector2(0, box.size.y * 0.42), Vector2(box.size.x, box.size.y * 0.5)),
 			scale * 0.8, Color.WHITE)
+
+
+func _exit_tree() -> void:
+	_lamps.all(false)
+	_lamps.stop()

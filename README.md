@@ -25,7 +25,7 @@ Format work is done for the layers that matter most; nothing renders yet.
 | Text / questions | **Solved** - 8374 Dutch questions across 13 pools, all references validate. See [quiz-format.md](docs/quiz-format.md). |
 | `.vgp` audio | **Solved** - 2336-byte sectors; stereo music / mono speech auto-detected from the trailer, 44100 Hz. See [audio-format.md](docs/audio-format.md). |
 | `.vag` audio | **Solved** - standard 48-byte header, declares 11025/22050/44100 Hz |
-| Controllers | **Real hardware working** - wired Buzz buzzers read as one HID pad (`054C:1000`) in the Godot round; virtual panel still behind `IBuzzInputSource` in the C# tools |
+| Controllers | **Real hardware working** - wired Buzz buzzers read as one HID pad (`054C:1000`), lamps driven by `obz-lamps.exe` over HID output reports; virtual panel still behind `IBuzzInputSource` in the C# tools |
 | Playable round | **Working** - `obz-round` plays a clip, takes buzzes, scores. Song-clip link unverified. |
 | Song table | `rri.dat` decoded - 1000 songs, release year + clip name, all clips present |
 | `.tex` textures | **Solved** - 42/42 decode, verified against PCSX2 captures. See [texture-format.md](docs/texture-format.md). |

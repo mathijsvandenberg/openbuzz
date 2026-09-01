@@ -80,3 +80,27 @@ colour and the raw index of the last press, so a mismatch stays visible.
 
 A keyboard stands in when no buzzers are attached: `1`-`4` buzz, then
 `QWER` / `ASDF` / `ZXCV` / `UIOP` answer.
+
+## Lamps
+
+The red lamp on each buzzer is lit by a HID **output** report, which the engine
+cannot send, so a helper does it. `dist/obz-lamps.exe` holds the device open and
+takes one four-digit pattern per line:
+
+```bash
+obz-lamps --set 1010     # lamps 1 and 3 on
+obz-lamps --probe        # what the device says about itself
+obz-lamps --serve        # a pattern per line on stdin, which is what the round uses
+```
+
+`Lamps.gd` starts it with `--serve` and keeps it running, because a round
+changes the lamps several times a second and a process per change would not
+keep up. The status bar says `lamps on` when the helper started, or why it did
+not.
+
+In a round: all four lit invites a buzz, the buzzed player alone stays lit, a
+right answer blinks it, a wrong one goes dark.
+
+The report is the one the Linux `hid-sony` driver uses for these buzzers - a
+leading zero then one byte per lamp, `0xFF` for lit - padded to the length the
+device declares, which it reports as 8.
