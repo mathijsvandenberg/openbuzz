@@ -36,7 +36,7 @@ Format work is done for the layers that matter most; nothing renders yet.
 | Round types | **All 10 playable and selectable**, input models and rules read from the game scripts; point values approximated. See [round-types.md](docs/round-types.md). |
 | `.ipu` video | **Container solved** - `ipum` header plus a `.ipx` frame index; all 241 frames split and decode through FFmpeg. No `.pss` on this disc. See [video-format.md](docs/video-format.md). |
 | Studio set, lights, cameras | Not started - in the `.rp2` streams, chunks parse but nothing reads the records |
-| Game flow | Not started - front end, character select, a session across rounds |
+| Game flow | **Session working** - short/medium/long games chain rounds, carrying scores and banked time; front end and character select still to do |
 | 3D + 2D composited | Not started - both halves run, never in the same scene |
 
 ## What the disc turned out to be

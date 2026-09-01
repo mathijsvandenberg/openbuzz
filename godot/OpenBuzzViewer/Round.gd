@@ -65,6 +65,12 @@ var _wav_dir := ""
 var _last_button := ""
 var _note := ""
 
+## A game is a queue of round ids. Empty means a single round, picked from the
+## list for testing; scores and banked time carry across the whole queue.
+var _queue: Array[String] = []
+var _leg := 0
+var _asked := 0
+
 
 func _ready() -> void:
 	if not _bundle.load_from(Bundle.base_dir()):
@@ -80,24 +86,31 @@ func _ready() -> void:
 	_wav_dir = _bundle.dir.get_base_dir().path_join("wav")
 	_canvas.draw.connect(_draw_round)
 
+	for key in ["short", "medium", "long"]:
+		_list.add_item("GAME - %s (%d rounds)" % [key.to_upper(), RoundRules.LENGTHS[key]])
 	for r in RoundRules.all():
 		_list.add_item(RoundRules.title(r, _bundle.text))
-	_list.item_selected.connect(_select_round)
+	_list.item_selected.connect(_pick)
 
 	_find_pad()
 	_lamps.start(Bundle.base_dir())
 	_demo = OS.get_cmdline_user_args().has("--demo")
 
-	var start := 0
+	var start := 3
 	var args := OS.get_cmdline_user_args()
 	var at := args.find("--round")
 	if at >= 0 and at + 1 < args.size():
 		for i in range(RoundRules.all().size()):
 			if RoundRules.all()[i].id == args[at + 1]:
-				start = i
+				start = 3 + i
+	at = args.find("--game")
+	if at >= 0 and at + 1 < args.size():
+		start = ["short", "medium", "long"].find(args[at + 1])
+		if start < 0:
+			start = 0
 
 	_list.select(start)
-	_select_round(start)
+	_pick(start)
 
 
 func _find_pad() -> void:
@@ -113,8 +126,33 @@ func _find_pad() -> void:
 		_pad = pads[0]
 
 
+## The first three entries start a game; the rest are single rounds for testing.
+func _pick(index: int) -> void:
+	_scores = [0, 0, 0, 0]
+	_banked = [0.0, 0.0, 0.0, 0.0]
+
+	if index < 3:
+		var length: String = ["short", "medium", "long"][index]
+		_queue = RoundRules.session(length)
+		_leg = 0
+		_begin_leg()
+		return
+
+	_queue = []
+	_select_round(index - 3)
+
+
+## Starts the round the queue is currently on.
+func _begin_leg() -> void:
+	_select_round_dict(RoundRules.by_id(_queue[_leg]))
+
+
 func _select_round(index: int) -> void:
-	_round = RoundRules.all()[index]
+	_select_round_dict(RoundRules.all()[index])
+
+
+func _select_round_dict(round: Dictionary) -> void:
+	_round = round
 	_blurb.text = "  " + str(_round.blurb) + (
 		"\n\n  Approximated: " + str(_round.approximates) if _round.approximates != "" else "")
 	_scores = [0, 0, 0, 0]
@@ -169,14 +207,24 @@ func _process(delta: float) -> void:
 	if _phase == Phase.PLAYING:
 		_clock -= delta
 		_advance(delta)
+	elif _phase == Phase.PICKING:
+		# A pick has to be able to time out, or a round where nobody presses
+		# waits for ever.
+		_clock -= delta
+		if _demo:
+			_picked(_active if int(_round.input) == RoundRules.Mode.CHASE else _winner,
+				ANSWER_BUTTONS[(_active + 1) % 4])
+		if _clock <= 0.0:
+			_give_up_pick()
 	elif _phase == Phase.REVEAL:
 		_clock -= delta
 		if _clock <= 0.0:
 			_next_question()
 
 	_canvas.queue_redraw()
-	_status.text = "%s   |   %s   |   pad %s   |   lamps %s   |   %s" % [
-		str(_round.get("id", "-")), _phase_name(),
+	var leg := "" if _queue.is_empty() else "game %d/%d - " % [_leg + 1, _queue.size()]
+	_status.text = "%s%s   |   %s   |   pad %s   |   lamps %s   |   %s" % [
+		leg, str(_round.get("id", "-")), _phase_name(),
 		"none" if _pad < 0 else str(_pad),
 		"on" if _lamps.available else _lamps.reason, _last_button]
 
@@ -235,8 +283,28 @@ func _advance(delta: float) -> void:
 				_note = "SPELER %d" % (_active + 1)
 
 
+## Nobody picked in time: the question just ends, unscored.
+func _give_up_pick() -> void:
+	_phase = Phase.REVEAL
+	_clock = 3.0
+	_note = "GEEN KEUZE"
+	_lamps.all(false)
+
+
 func _next_question() -> void:
 	_index += 1
+	_asked += 1
+
+	# In a game each round runs its share of questions, then hands on.
+	if not _queue.is_empty() and _asked >= RoundRules.QUESTIONS_PER_ROUND:
+		_leg += 1
+		if _leg >= _queue.size():
+			_phase = Phase.DONE
+			_lamps.all(false)
+			return
+		_begin_leg()
+		return
+
 	if _index >= _questions.size():
 		_phase = Phase.DONE
 		_lamps.all(false)
@@ -246,12 +314,20 @@ func _next_question() -> void:
 	if int(_round.input) == RoundRules.Mode.ACTIVE:
 		_active = (_active + 1) % PLAYERS
 
-	# Hot Seat stays with one player until their clock runs out.
+	# Hot Seat stays with one player until the time they banked runs out.
 	if int(_round.score) == RoundRules.Score.STAKE:
 		_active = 0
 		if _banked[0] <= 0.0:
-			_phase = Phase.DONE
-			_lamps.all(false)
+			if _queue.is_empty():
+				_phase = Phase.DONE
+				_lamps.all(false)
+				return
+			_leg += 1
+			if _leg >= _queue.size():
+				_phase = Phase.DONE
+				_lamps.all(false)
+				return
+			_begin_leg()
 			return
 
 	_start_question()

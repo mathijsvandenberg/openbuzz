@@ -21,6 +21,12 @@ func _ready() -> void:
 		_shot_path = args[shot + 1]
 		_delay = 45
 
+	# Later frames let a capture land well into a game rather than on its first
+	# question.
+	var after := args.find("--shot-after")
+	if after >= 0 and after + 1 < args.size():
+		_delay = int(args[after + 1])
+
 
 func _process(_delta: float) -> void:
 	if _shot_path.is_empty():

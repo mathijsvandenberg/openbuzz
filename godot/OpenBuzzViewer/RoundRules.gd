@@ -106,6 +106,45 @@ static func all() -> Array[Dictionary]:
 	]
 
 
+
+## How many questions a round runs in a game. Not recoverable from the scripts.
+const QUESTIONS_PER_ROUND := 4
+
+## Rounds per game, for the three lengths the game offers. The menu names them
+## Short, Medium and Long; the counts here are a choice, not a finding.
+const LENGTHS := {"short": 3, "medium": 5, "long": 7}
+
+
+## <summary>
+## The order of rounds in a game.
+##
+## Two things do come from the game. Hot Seat is the finale - it is the only
+## round with its own HotSeatRoundEnd script - and Time Builder feeds it, since
+## its own rules line says the time won is for "de laatste ronde".
+##
+## The rest of the order is not recoverable: the length menu sets
+## NameOfGameToPlay to ShortMultiplayerGame and friends, and no script by those
+## names is on the disc, so the sequence lives in the executable. The middle of
+## the game is therefore shuffled.
+## </summary>
+static func session(length: String) -> Array[String]:
+	var count: int = LENGTHS.get(length, 3)
+
+	var middle: Array[String] = []
+	for r in all():
+		if r.id != "hot_seat" and r.id != "time_builder":
+			middle.append(str(r.id))
+	middle.shuffle()
+
+	var order: Array[String] = []
+	for i in range(maxi(count - 2, 0)):
+		order.append(middle[i % middle.size()])
+
+	# Time Builder banks the time Hot Seat spends, so it comes directly before.
+	order.append("time_builder")
+	order.append("hot_seat")
+	return order
+
 static func by_id(id: String) -> Dictionary:
 	for r in all():
 		if r.id == id:

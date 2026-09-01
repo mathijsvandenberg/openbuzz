@@ -89,11 +89,31 @@ Structure and input model come from the game. These do not:
 Each of these is named on screen in the round's own panel, so nothing passes as
 recovered when it is not.
 
+## A game
+
+The Round tab's first three entries play a game rather than a single round:
+short (3 rounds), medium (5) and long (7) - the three lengths the game's own
+length menu offers. Scores and banked time carry across the whole game, and each
+round runs four questions before handing on.
+
+Two things about the order come from the game:
+
+- **Hot Seat is the finale.** It is the only round with its own
+  `HotSeatRoundEnd` script.
+- **Time Builder feeds it.** Its own rule line says the time won is for
+  "de laatste ronde" - the last round - so it is placed directly before.
+
+The middle of the game is shuffled, because the order is not recoverable. The
+length menu sets `NameOfGameToPlay` to `ShortMultiplayerGame` and friends, and no
+script by those names is on the disc, so the sequence lives in the executable.
+The rounds-per-game counts and the four questions per round are choices too.
+
 ## Playing them
 
 `obz-viewer.exe`, Round tab; the list on the left switches type. `--round <id>`
 picks one at startup and `--demo` plays it hands-free:
 
 ```bash
-obz-viewer.exe -- --tab 2 --round buzz_stop --demo
+obz-viewer.exe -- --tab 2 --round buzz_stop --demo   # one round
+obz-viewer.exe -- --tab 2 --game short --demo        # a whole game
 ```
