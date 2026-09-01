@@ -110,3 +110,23 @@ The report is the one the Linux `hid-sony` driver uses for these buzzers - a
 leading zero then one byte per lamp, `0xFF` for lit - padded to the length the
 device declares, which it reports as 8. **Confirmed lighting real hardware**,
 so the byte offsets are measured rather than inferred from the driver.
+
+## Notes from playing it
+
+Four things that only showed up on real hardware:
+
+- **The joypad drove the interface.** Godot binds joypad buttons to its own UI
+  actions, so a red buzzer was pressing whatever had focus and answering paged
+  between tabs. `Root.gd` strips every joypad event off the `ui_` actions at
+  startup and takes focus off the lists - the game reads the pad directly, so
+  the UI never needed those bindings.
+- **The answer was nearly always blue.** Every question record on the disc
+  stores its correct answer first, so shown in file order the answer sat on the
+  top button every time. The four options are now shuffled per question.
+- **The same songs came round again.** Starting a round reset the question
+  cursor, so every leg of a game replayed the same questions. The cursor now
+  runs across the whole game, and it skips a question whose clip was just played
+  - only 47 clips are decoded, so plain shuffling repeats a song within a
+  couple of questions.
+- **One answer at a time looked broken.** It is deliberate in Snap and Trigger
+  Finger, so those rounds now say so on screen and show which of the four is up.

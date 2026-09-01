@@ -10,6 +10,8 @@ var _delay := 0
 
 
 func _ready() -> void:
+	_release_the_joypad()
+
 	var args := OS.get_cmdline_user_args()
 
 	var tab := args.find("--tab")
@@ -40,3 +42,20 @@ func _process(_delta: float) -> void:
 	get_viewport().get_texture().get_image().save_png(_shot_path)
 	print("wrote ", _shot_path)
 	get_tree().quit()
+
+
+## Godot binds joypad buttons to its UI actions by default, so button 0 is
+## ui_accept and the shoulder buttons page the tabs. On a Buzz handset that
+## means a red buzzer presses whatever has focus and answering flips to another
+## tab. The game reads the pad directly, so the UI has no use for those
+## bindings at all: strip every joypad event off the ui_ actions and stop the
+## tab strip taking focus.
+func _release_the_joypad() -> void:
+	for action in InputMap.get_actions():
+		if not str(action).begins_with("ui_"):
+			continue
+		for event in InputMap.action_get_events(action):
+			if event is InputEventJoypadButton or event is InputEventJoypadMotion:
+				InputMap.action_erase_event(action, event)
+
+	focus_mode = Control.FOCUS_NONE

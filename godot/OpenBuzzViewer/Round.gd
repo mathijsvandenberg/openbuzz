@@ -54,6 +54,12 @@ var _scores := [0, 0, 0, 0]
 var _awarded := [0, 0, 0, 0]
 var _banked := [0.0, 0.0, 0.0, 0.0]
 
+## Display order of the four options, and where the correct one landed.
+## The disc stores the correct answer first in every record, so shown in
+## file order the answer would always be the top button.
+var _order := [0, 1, 2, 3]
+var _correct := 0
+
 var _active := 0          ## whose turn, for ACTIVE and CHASE rounds
 var _winner := -1         ## who won a buzz race
 var _cue := -1            ## which option BUZZ_ON_CUE is showing
@@ -131,6 +137,7 @@ func _pick(index: int) -> void:
 	_scores = [0, 0, 0, 0]
 	_banked = [0.0, 0.0, 0.0, 0.0]
 
+	_index = 0
 	if index < 3:
 		var length: String = ["short", "medium", "long"][index]
 		_queue = RoundRules.session(length)
@@ -193,6 +200,11 @@ func _start_question() -> void:
 		_fuse = randf_range(20.0, 40.0)
 
 	var q: Dictionary = _questions[_index]
+
+	_order = [0, 1, 2, 3]
+	_order.shuffle()
+	_correct = _order.find(int(q["correct"]))
+
 	var path := _wav_dir.path_join("%s.wav" % str(q["clip"]))
 	if FileAccess.file_exists(path):
 		var stream := AudioStreamWAV.load_from_file(path)
@@ -291,8 +303,20 @@ func _give_up_pick() -> void:
 	_lamps.all(false)
 
 
+## Advances past any question whose clip was just played: only 47 clips are
+## decoded, so plain shuffling repeats a song within a couple of questions.
+func _advance_index() -> void:
+	var previous := "" if _index >= _questions.size() else str(_questions[_index]["clip"])
+	for _try in range(12):
+		_index += 1
+		if _index >= _questions.size():
+			return
+		if str(_questions[_index]["clip"]) != previous:
+			return
+
+
 func _next_question() -> void:
-	_index += 1
+	_advance_index()
 	_asked += 1
 
 	# In a game each round runs its share of questions, then hands on.
@@ -339,12 +363,10 @@ func _finish() -> void:
 	_audio.stop()
 	_lamps.all(false)
 
-	var correct := int(_questions[_index]["correct"])
-
 	match int(_round.score):
 		RoundRules.Score.FLAT:
 			for p in range(PLAYERS):
-				if _answers[p] == correct:
+				if _answers[p] == _correct:
 					_awarded[p] = RoundRules.POINTS
 					_scores[p] += RoundRules.POINTS
 
@@ -352,7 +374,7 @@ func _finish() -> void:
 			# Ranked by how quickly the correct answer came in.
 			var right := []
 			for p in range(PLAYERS):
-				if _answers[p] == correct:
+				if _answers[p] == _correct:
 					right.append({p = p, t = _times[p]})
 			right.sort_custom(func(a, b): return a.t < b.t)
 			for rank in range(right.size()):
@@ -361,7 +383,7 @@ func _finish() -> void:
 				_scores[right[rank].p] += pts
 
 		RoundRules.Score.STEAL:
-			if _winner >= 0 and _answers[_winner] == correct:
+			if _winner >= 0 and _answers[_winner] == _correct:
 				_phase = Phase.PICKING
 				_clock = 10.0
 				_note = "PAK PUNTEN AF"
@@ -370,18 +392,18 @@ func _finish() -> void:
 
 		RoundRules.Score.TIME:
 			# Time left on the clock becomes time banked for Hot Seat.
-			if _answers[_active] == correct:
+			if _answers[_active] == _correct:
 				_banked[_active] += maxf(_clock, 0.0)
 				_awarded[_active] = int(maxf(_clock, 0.0))
 
 		RoundRules.Score.STAKE:
-			if _answers[_active] == correct:
+			if _answers[_active] == _correct:
 				_awarded[_active] = RoundRules.POINTS
 				_scores[_active] += RoundRules.POINTS
 			_banked[_active] = maxf(_banked[_active] - (float(_round.seconds) - _clock), 0.0)
 
 		RoundRules.Score.BOMB:
-			if _answers[_active] == correct:
+			if _answers[_active] == _correct:
 				_note = "DOORGEVEN"
 
 
@@ -565,7 +587,6 @@ func _draw_intro(offset: Vector2, scale: float) -> void:
 
 func _draw_question(offset: Vector2, scale: float) -> void:
 	var q: Dictionary = _questions[_index]
-	var correct := int(q["correct"])
 	var on_cue := int(_round.input) == RoundRules.Mode.BUZZ_ON_CUE
 
 	_bundle.draw_wrapped(_canvas, "GeneralLarge",
@@ -599,11 +620,24 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 
 		var tint := Color.WHITE
 		if _phase == Phase.REVEAL:
-			tint = Color(0.59, 1.0, 0.67) if i == correct else Color(0.55, 0.58, 0.64)
+			tint = Color(0.59, 1.0, 0.67) if i == _correct else Color(0.55, 0.58, 0.64)
 
-		_bundle.draw_wrapped(_canvas, "GeneralLarge", str(options[i]),
+		_bundle.draw_wrapped(_canvas, "GeneralLarge", str(options[_order[i]]),
 			Rect2(offset + Vector2(102, y - 4) * scale, Vector2(CANVAS.x - 140, 38) * scale),
 			scale * 0.85, tint, "Left")
+
+	# Snap and Trigger Finger deliberately show one option at a time; without
+	# saying so it just looks like the others failed to draw.
+	if on_cue and _phase == Phase.PLAYING:
+		_bundle.draw_wrapped(_canvas, "RoundInstructionsSmall",
+			"DRUK OP DE ZOEMER BIJ HET JUISTE ANTWOORD",
+			Rect2(offset + Vector2(40, 104) * scale, Vector2(CANVAS.x - 80, 22) * scale),
+			scale * 0.7, Color(0.72, 0.76, 0.86))
+
+		for slot in range(4):
+			var dot := Rect2(offset + Vector2(CANVAS.x * 0.5 - 34 + slot * 18, 330) * scale,
+				Vector2(11, 11) * scale)
+			_canvas.draw_rect(dot, COLOURS[slot] if slot == _cue else Color(0.22, 0.24, 0.30))
 
 	if _note != "":
 		_bundle.draw_wrapped(_canvas, "ExtraLarge", _note,
@@ -612,7 +646,6 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 
 
 func _draw_podiums(offset: Vector2, scale: float) -> void:
-	var correct := int(_questions[_index]["correct"])
 	var live := int(_round.input) in [RoundRules.Mode.ACTIVE, RoundRules.Mode.CHASE]
 	var banks := int(_round.score) in [RoundRules.Score.TIME, RoundRules.Score.STAKE]
 
