@@ -143,3 +143,12 @@ Each glyph is cut into its own bitmap up front. Drawing a sub-rectangle of a
 shared atlas lets GDI+ sample the neighbouring glyphs whenever the destination
 is not pixel-aligned, and that shows up as fragments of other letters clinging
 to the baseline.
+
+## No accents anywhere
+
+Every sheet is 65 glyphs - capitals, digits and punctuation - and not one of
+them carries an accent, though the Dutch quiz data uses five: E I O A with a
+diaeresis and E acute, in HAITI, AUSTRALIE, BJORN ULVAEUS, AGNETHA FALTSKOG and
+CAFE. Twenty-one occurrences in four hundred questions. There is no glyph to
+draw, so `Bundle` folds them to the plain letter; left alone they came out as a
+hole in the middle of the word.

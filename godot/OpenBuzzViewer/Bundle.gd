@@ -90,13 +90,37 @@ func font_or_default(style: String) -> String:
 	return fonts.keys()[0] if not fonts.is_empty() else ""
 
 
+## The game's bitmap fonts are 65 glyphs - capitals, digits and punctuation -
+## with no accents in any of them, so five characters the quiz data does use
+## have nothing to draw: E I O A with a diaeresis, and E acute. Left alone they
+## come out as a hole in the middle of a word (BJ RN ULVAEUS), so they fold to
+## the plain letter instead.
+const FOLD := {
+	"Ä": "A", "É": "E", "Ë": "E", "Ï": "I", "Ö": "O",
+	"Ü": "U", "À": "A", "Á": "A", "Â": "A", "È": "E",
+	"Ê": "E", "Ì": "I", "Í": "I", "Î": "I", "Ò": "O",
+	"Ó": "O", "Ô": "O", "Ù": "U", "Ú": "U", "Û": "U",
+	"Ç": "C", "Ñ": "N",
+}
+
+
+## The glyph to draw for a character, folding an accent away when the sheet has
+## no glyph for it. Returns "" when there is nothing to draw at all.
+func _glyph_key(glyphs: Dictionary, c: String) -> String:
+	if glyphs.has(c):
+		return c
+	var folded: String = FOLD.get(c, "")
+	return folded if folded != "" and glyphs.has(folded) else ""
+
+
 func measure(style: String, body: String, scale := 1.0) -> float:
 	if not fonts.has(style):
 		return 0.0
 	var glyphs: Dictionary = fonts[style]["glyphs"]
 	var w := 0.0
 	for c in body:
-		w += float(glyphs[c]["advance"]) if glyphs.has(c) else float(fonts[style]["lineStep"]) * 0.25
+		var key := _glyph_key(glyphs, c)
+		w += float(glyphs[key]["advance"]) if key != "" else float(fonts[style]["lineStep"]) * 0.25
 	return w * scale
 
 
@@ -117,10 +141,11 @@ func draw_line_of_text(canvas: CanvasItem, style: String, body: String,
 	var glyphs: Dictionary = font["glyphs"]
 	var x := at.x
 	for c in body:
-		if not glyphs.has(c):
+		var key := _glyph_key(glyphs, c)
+		if key == "":
 			x += float(font["lineStep"]) * 0.25 * scale
 			continue
-		var g: Dictionary = glyphs[c]
+		var g: Dictionary = glyphs[key]
 		var src := Rect2(float(g["x"]), float(g["y"]), float(g["w"]), float(g["h"]))
 		canvas.draw_texture_rect_region(tex, Rect2(Vector2(x, at.y), src.size * scale), src, colour)
 		x += float(g["advance"]) * scale
@@ -153,6 +178,43 @@ func draw_wrapped(canvas: CanvasItem, style: String, body: String, box: Rect2,
 			x += box.size.x - w
 		draw_line_of_text(canvas, style, line, Vector2(x, y), scale, colour)
 		y += step
+
+
+## Draws on exactly one line, shrinking to fit rather than wrapping.
+##
+## The answers never wrap in the game, and they must not here either: the long
+## ones are the Snap and Trigger Finger statements, which are whole sentences
+## and are the round. Shrinking keeps all of one, where wrapping crowds the
+## line under it and cutting would leave it unanswerable. `floor` is how far
+## the type may shrink, as a share of the size asked for; past that the line is
+## cut with an ellipsis, which in this data only the very longest statement
+## reaches.
+func draw_one_line(canvas: CanvasItem, style: String, body: String, box: Rect2,
+		scale: float, colour: Color, justify := "Left", floor_share := 0.48) -> void:
+	if not fonts.has(style) or box.size.x <= 0.0 or body.is_empty():
+		return
+
+	var width := measure(style, body, scale)
+	if width > box.size.x:
+		var wanted := box.size.x / maxf(width, 0.001)
+		scale *= maxf(wanted, floor_share)
+
+		# Still over even at the floor: cut, and say so with an ellipsis.
+		if wanted < floor_share:
+			var room := box.size.x - measure(style, "...", scale)
+			while body.length() > 1 and measure(style, body, scale) > room:
+				body = body.substr(0, body.length() - 1)
+			body = body.strip_edges() + "..."
+
+	var x := box.position.x
+	var drawn := measure(style, body, scale)
+	if justify == "Centre":
+		x += (box.size.x - drawn) * 0.5
+	elif justify == "Right":
+		x += box.size.x - drawn
+
+	var y := box.position.y + maxf(0.0, (box.size.y - line_step(style) * scale) * 0.5)
+	draw_line_of_text(canvas, style, body, Vector2(x, y), scale, colour)
 
 
 func wrap_text(style: String, body: String, width: float) -> PackedStringArray:

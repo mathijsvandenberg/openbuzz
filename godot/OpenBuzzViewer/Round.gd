@@ -145,6 +145,7 @@ func _ready() -> void:
 
 	_questions.shuffle()
 	_wav_dir = _bundle.dir.get_base_dir().path_join("wav")
+	_pull_to_front(OS.get_cmdline_user_args())
 	_canvas.draw.connect(_draw_round)
 
 	for key in ["short", "medium", "long"]:
@@ -176,6 +177,25 @@ func _ready() -> void:
 
 	_list.select(start)
 	_pick(start)
+
+
+## `--question <text>` brings the first question mentioning that text to the
+## front of the shuffle. For checking a layout against a known-awkward record -
+## the longest statements are what the answer rows have to survive - rather
+## than waiting for one to come round.
+func _pull_to_front(args: PackedStringArray) -> void:
+	var at := args.find("--question")
+	if at < 0 or at + 1 >= args.size():
+		return
+
+	var want := args[at + 1].to_upper()
+	for i in range(_questions.size()):
+		var hay := str(_questions[i]["question"])
+		for option in _questions[i]["options"]:
+			hay += " " + str(option)
+		if hay.to_upper().contains(want):
+			_questions.push_front(_questions.pop_at(i))
+			return
 
 
 func _find_pad() -> void:
@@ -702,6 +722,14 @@ func _text(offset: Vector2, scale: float, style: String, body: String,
 		_at(offset, scale, x, y, w, h), scale * size, colour, justify)
 
 
+## As _text, but never wrapping: it shrinks to hold the line instead.
+func _line(offset: Vector2, scale: float, style: String, body: String,
+		x: float, y: float, w: float, h: float,
+		size: float, colour: Color, justify := "Left") -> void:
+	_bundle.draw_one_line(_canvas, style, body,
+		_at(offset, scale, x, y, w, h), scale * size, colour, justify)
+
+
 # ---------------------------------------------------------------- intro
 
 func _draw_intro(offset: Vector2, scale: float) -> void:
@@ -789,8 +817,13 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 			tint = Color(0.78, 0.81, 0.88)
 
 		if shown != "":
-			_text(offset, scale, "GeneralLarge", shown,
-				ANSWER_TEXT, y - 2, PANEL.x - ANSWER_TEXT - 24.0, 34, 0.82, tint)
+			# On-cue rounds have the screen to themselves, so their statement -
+			# which is a whole sentence - gets the width back from the square.
+			var room := PANEL.x - ANSWER_TEXT - 24.0
+			if on_cue:
+				room = PANEL.x - ANSWER_TEXT - 8.0
+			_line(offset, scale, "GeneralLarge", shown,
+				ANSWER_TEXT, y - 2, room, 34, 0.82, tint)
 
 	# Snap and Trigger Finger deliberately show one option at a time; without
 	# saying so it just looks like the others failed to draw.
