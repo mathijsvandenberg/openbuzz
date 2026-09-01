@@ -218,7 +218,7 @@ func _input(event: InputEvent) -> void:
 
 	if _orbiting:
 		_yaw -= motion.relative.x * 0.01
-		_pitch = clampf(_pitch + motion.relative.y * 0.01, -1.2, 1.2)
+		_pitch = clampf(_pitch - motion.relative.y * 0.01, -1.2, 1.2)
 		return
 
 	if _panning:

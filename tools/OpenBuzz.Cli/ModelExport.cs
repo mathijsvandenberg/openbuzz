@@ -139,7 +139,11 @@ public static class ModelExport
         int cut = stem.IndexOf("Costume", StringComparison.OrdinalIgnoreCase);
         var character = cut > 0 ? stem[..cut] : stem;
 
+        // A model's own stream can carry clips too - the Hostess keeps all 11
+        // of hers there and has no separate animation file at all - so it is
+        // read alongside the matching *Animation* streams.
         var streams = Directory.GetFiles(dir, character + "*Animation*.rp2")
+                               .Prepend(modelPath)
                                .OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToArray();
         int added = 0;
 

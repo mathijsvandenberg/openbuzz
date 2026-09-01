@@ -26,6 +26,10 @@ const COLOURS := [
 	Color(0.96, 0.85, 0.20),   # yellow
 ]
 
+## The screen covers the left of the frame; the strip on the right is left
+## clear so the hostess standing in the 3D layer behind is not painted over.
+const SCREEN_WIDTH := 0.80
+
 const CHASE_STEP := 0.16
 const CUE_STEP := 1.0
 
@@ -556,7 +560,17 @@ func _draw_round() -> void:
 	var view := _canvas.size
 	var scale := minf(view.x / CANVAS.x, view.y / CANVAS.y)
 	var offset := (view - CANVAS * scale) * 0.5
-	_canvas.draw_rect(Rect2(offset, CANVAS * scale), Color(0.07, 0.08, 0.11))
+
+	# The screen panel, drawn over the studio rather than instead of it.
+	var screen := Rect2(offset, Vector2(CANVAS.x * SCREEN_WIDTH, CANVAS.y) * scale)
+	_canvas.draw_rect(screen, Color(0.09, 0.12, 0.18, 0.90))
+	_canvas.draw_rect(screen, Color(0.40, 0.47, 0.62, 0.55), false, 2.0 * scale)
+
+	# A faint horizontal seam, as on the game's back-projected wall.
+	for band in range(1, 4):
+		var y := screen.position.y + screen.size.y * band / 4.0
+		_canvas.draw_line(Vector2(screen.position.x, y),
+			Vector2(screen.end.x, y), Color(1, 1, 1, 0.045), 1.0)
 
 	if _questions.is_empty() or _round.is_empty():
 		return
@@ -591,18 +605,18 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 
 	_bundle.draw_wrapped(_canvas, "GeneralLarge",
 		"%d. %s" % [_index + 1, str(q["question"])],
-		Rect2(offset + Vector2(36, 14) * scale, Vector2(CANVAS.x - 72, 66) * scale),
+		Rect2(offset + Vector2(30, 16) * scale, Vector2(CANVAS.x * SCREEN_WIDTH - 60, 62) * scale),
 		scale * 0.95, Color.WHITE)
 
 	if _phase == Phase.PLAYING:
 		var span := maxf(float(_round.seconds), 0.001)
-		_canvas.draw_rect(Rect2(offset + Vector2(36, 92) * scale,
-			Vector2((CANVAS.x - 72) * clampf(_clock / span, 0.0, 1.0), 5) * scale),
+		_canvas.draw_rect(Rect2(offset + Vector2(30, 88) * scale,
+			Vector2((CANVAS.x * SCREEN_WIDTH - 60) * clampf(_clock / span, 0.0, 1.0), 4) * scale),
 			Color(0.85, 0.78, 0.25))
 
 	if int(_round.score) == RoundRules.Score.BOMB and _phase == Phase.PLAYING:
 		_bundle.draw_wrapped(_canvas, "RoundInstructionsSmall", "BOM  %0.0f" % maxf(_fuse, 0.0),
-			Rect2(offset + Vector2(CANVAS.x - 160, 100) * scale, Vector2(130, 24) * scale),
+			Rect2(offset + Vector2(CANVAS.x * SCREEN_WIDTH - 150, 96) * scale, Vector2(130, 22) * scale),
 			scale * 0.8, Color(0.95, 0.5, 0.35), "Right")
 
 	var options: Array = q["options"]
@@ -614,8 +628,13 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 		if not visible:
 			continue
 
-		var swatch := Rect2(offset + Vector2(56, y) * scale, Vector2(30, 30) * scale)
-		_canvas.draw_rect(swatch, Color(0.07, 0.09, 0.12))
+		# A rule under each answer, with the colour square sitting on it.
+		_canvas.draw_line(offset + Vector2(96, y + 30) * scale,
+			offset + Vector2(CANVAS.x * SCREEN_WIDTH - 34, y + 30) * scale,
+			Color(1, 1, 1, 0.20), 1.5 * scale)
+
+		var swatch := Rect2(offset + Vector2(56, y) * scale, Vector2(28, 28) * scale)
+		_canvas.draw_rect(swatch, Color(0.05, 0.07, 0.10, 0.9))
 		_canvas.draw_rect(swatch, COLOURS[i], false, 3.0 * scale)
 
 		var tint := Color.WHITE
@@ -623,7 +642,7 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 			tint = Color(0.59, 1.0, 0.67) if i == _correct else Color(0.55, 0.58, 0.64)
 
 		_bundle.draw_wrapped(_canvas, "GeneralLarge", str(options[_order[i]]),
-			Rect2(offset + Vector2(102, y - 4) * scale, Vector2(CANVAS.x - 140, 38) * scale),
+			Rect2(offset + Vector2(96, y - 3) * scale, Vector2(CANVAS.x * SCREEN_WIDTH - 130, 34) * scale),
 			scale * 0.85, tint, "Left")
 
 	# Snap and Trigger Finger deliberately show one option at a time; without
@@ -631,17 +650,17 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 	if on_cue and _phase == Phase.PLAYING:
 		_bundle.draw_wrapped(_canvas, "RoundInstructionsSmall",
 			"DRUK OP DE ZOEMER BIJ HET JUISTE ANTWOORD",
-			Rect2(offset + Vector2(40, 104) * scale, Vector2(CANVAS.x - 80, 22) * scale),
+			Rect2(offset + Vector2(30, 100) * scale, Vector2(CANVAS.x * SCREEN_WIDTH - 60, 20) * scale),
 			scale * 0.7, Color(0.72, 0.76, 0.86))
 
 		for slot in range(4):
-			var dot := Rect2(offset + Vector2(CANVAS.x * 0.5 - 34 + slot * 18, 330) * scale,
+			var dot := Rect2(offset + Vector2(CANVAS.x * SCREEN_WIDTH * 0.5 - 34 + slot * 18, 330) * scale,
 				Vector2(11, 11) * scale)
 			_canvas.draw_rect(dot, COLOURS[slot] if slot == _cue else Color(0.22, 0.24, 0.30))
 
 	if _note != "":
 		_bundle.draw_wrapped(_canvas, "ExtraLarge", _note,
-			Rect2(offset + Vector2(0, 322) * scale, Vector2(CANVAS.x, 36) * scale),
+			Rect2(offset + Vector2(0, 322) * scale, Vector2(CANVAS.x * SCREEN_WIDTH, 36) * scale),
 			scale * 0.55, Color(0.95, 0.83, 0.35))
 
 
