@@ -116,6 +116,10 @@ public static class RwStream
     public static List<RwNode> Parse(byte[] data, int maxDepth = 8) =>
         ParseRange(data, 0, data.Length, 0, maxDepth);
 
+    /// Parses one chunk's payload, for walking into a chunk found by hand.
+    public static List<RwNode> ParseAt(byte[] data, int offset, int size, int maxDepth = 8) =>
+        ParseRange(data, offset, offset + size, 0, maxDepth);
+
     private static List<RwNode> ParseRange(byte[] data, int start, int end, int depth, int maxDepth)
     {
         var nodes = new List<RwNode>();

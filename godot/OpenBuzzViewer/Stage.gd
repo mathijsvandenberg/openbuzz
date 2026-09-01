@@ -1,13 +1,24 @@
-extends Node3D
+extends Studio
 
-## The studio behind the round screen.
+## The studio as the round sees it: the set, the hostess, and the camera.
 ##
-## The reference shots stage it the same way every round: the big screen fills
-## most of the frame with the hostess standing to the right of it, in front.
-## So the 3D layer holds her, the 2D layer draws the screen over the left of it,
-## and the strip on the right is left clear for her to stand in.
+## Everything placed here comes out of the game's own data. The set pieces and
+## the contestant marks are in StudioModels.rp2; the camera is squared on the
+## jumbotron, whose size and facing that file also gives. What the round draws
+## goes onto the jumbotron itself rather than over the top of it, because in the
+## reference shots the question is on the studio screen and the studio is what
+## you are looking at.
 
 const IDLE_SWITCH := 9.0
+
+## Where the hostess stands. There is no DUMMYNODE for her - the markers name
+## the four contestants, the clock, the prize room and the game win - but the
+## set does have MODEL_SET_LECTERN, which is the presenter's spot, and she is
+## put beside it. How far to the side is the one number here still set against
+## the reference rather than read out of the file.
+const LECTERN := "MODEL_SET_LECTERN"
+const HOSTESS_SIDE := 300.0     ## out to the right of the lectern
+const HOSTESS_TURN := 200.0
 
 @onready var _camera: Camera3D = $Camera
 
@@ -15,28 +26,23 @@ var _figure: Node3D = null
 var _player: AnimationPlayer = null
 var _clips: PackedStringArray = []
 var _next_idle := IDLE_SWITCH
+var _framed := false
 
 
-func _ready() -> void:
+func build(screen: Texture2D, players: int) -> bool:
 	var dir := _find_models()
 	if dir.is_empty():
-		return
+		return false
 
-	_figure = _load(dir.path_join("Hostess.glb"))
-	if _figure == null:
-		_figure = _load(dir.path_join("Host.glb"))
-	if _figure == null:
-		return
+	if not load_set(dir):
+		return false
 
-	add_child(_figure)
-	_play_random_idle()
+	stage_for(players)
+	if screen != null:
+		show_on_screen(screen)
 
-	# Framing has to wait for the skeleton to be posed: in _ready the bones are
-	# still at their rest transforms and the measured bounds are empty, which
-	# put the camera inside the model and rendered nothing at all.
-	await get_tree().process_frame
-	await get_tree().process_frame
-	_frame_figure()
+	_add_hostess(dir)
+	return true
 
 
 static func _find_models() -> String:
@@ -50,6 +56,56 @@ static func _find_models() -> String:
 			break
 		d = up
 	return ""
+
+
+func _add_hostess(dir: String) -> void:
+	_figure = _load(dir.path_join("Hostess.glb"))
+	if _figure == null:
+		_figure = _load(dir.path_join("Host.glb"))
+	if _figure == null:
+		return
+
+	add_child(_figure)
+	_stand_hostess()
+	_play_random_idle()
+
+
+## Puts her on the studio floor beside the screen, at the screen's own scale.
+## Her model and the set are in the same units, so no scaling is needed - which
+## is worth saying, because guessing a scale was what made her look like a
+## figurine in front of a wall before.
+func _stand_hostess() -> void:
+	var rect := screen_rect()
+	if rect.is_empty():
+		return
+
+	var stand := Vector3.ZERO
+	var lectern := parts(LECTERN)
+	if not lectern.is_empty():
+		stand = (lectern[0] as Node3D).global_position
+
+	# Beside the lectern, on the same floor, turned back towards the screen.
+	_figure.global_position = stand + (rect.right as Vector3).normalized() * HOSTESS_SIDE
+	_figure.rotation_degrees = Vector3(0, HOSTESS_TURN, 0)
+
+	if OS.get_cmdline_user_args().has("--stage-report"):
+		var box := AABB()
+		var first := true
+		for m in _meshes_of(_figure):
+			var world: AABB = m.global_transform * m.get_aabb()
+			box = world if first else box.merge(world)
+			first = false
+		print("STAGE lectern=", stand, " screen=", rect.centre)
+		print("STAGE hostess at=", _figure.global_position, " bounds=", box)
+
+
+static func _meshes_of(node: Node) -> Array:
+	var out := []
+	if node is MeshInstance3D:
+		out.append(node)
+	for child in node.get_children():
+		out.append_array(_meshes_of(child))
+	return out
 
 
 func _load(path: String) -> Node3D:
@@ -71,50 +127,14 @@ func _load(path: String) -> Node3D:
 	return scene
 
 
-## Stands her at the right of the frame, turned a little towards the screen.
-## Framed exactly as the Models tab frames a character, which is known to work:
-## the mesh AABB, a distance of 2.6 radii, and Godot's default field of view.
-## Narrowing the fov while keeping that distance was what put the camera inside
-## her dress.
-func _frame_figure() -> void:
-	# Turn her first. Her geometry is offset from her own origin, so rotating
-	# after measuring swings the body out of the frame that was just computed -
-	# which is exactly what kept putting her half out of shot.
-	_figure.rotation_degrees = Vector3(0, 200, 0)
-	_figure.force_update_transform()
-
-	var meshes: Array[Node] = []
-	_collect(_figure, "MeshInstance3D", meshes)
-
-	var box := AABB()
-	var first := true
-	for m in meshes:
-		var mi := m as MeshInstance3D
-		var world := mi.global_transform * mi.get_aabb()
-		box = world if first else box.merge(world)
-		first = false
-	if first:
-		return
-
-	var centre := box.get_center()
-	var radius := maxf(maxf(box.size.x, box.size.y), box.size.z) * 0.5
-	if radius <= 0.0:
-		radius = 1.0
-
-	# The AABB of a skinned mesh describes it unposed, and for these rigs it
-	# sits well below the body that actually renders. The lift and the pull-back
-	# are tuned against the render rather than derived, because the bounds
-	# cannot be trusted to say where she is.
-	var aim := centre + Vector3(0.0, radius * 0.50, 0.0)
-	var direction := Vector3(0.0, 0.30, 1.0).normalized()
-	_camera.position = aim + direction * radius * 2.75
-	_camera.look_at(aim, Vector3.UP)
-
-	if OS.get_cmdline_user_args().has("--stage-shot"):
-		_capture()
-
-
+## The camera has to wait for the viewport to have a size, because the distance
+## that frames the screen depends on the aspect.
 func _process(delta: float) -> void:
+	var view := get_viewport().get_visible_rect().size
+	if not _framed and view.x > 1.0 and view.y > 1.0:
+		aim_at_screen(_camera, view.x / view.y)
+		_framed = true
+
 	if _player == null or _clips.is_empty():
 		return
 	_next_idle -= delta
@@ -144,21 +164,3 @@ func _find(node: Node, cls: String) -> Node:
 		if found != null:
 			return found
 	return null
-
-
-func _collect(node: Node, cls: String, into: Array[Node]) -> void:
-	if node.get_class() == cls:
-		into.append(node)
-	for child in node.get_children():
-		_collect(child, cls, into)
-
-
-## Saves what the stage viewport alone renders, with nothing composited over
-## it, so the framing can be judged without the 2D layer in the way.
-func _capture() -> void:
-	await get_tree().create_timer(1.2).timeout
-	await RenderingServer.frame_post_draw
-	var image := get_viewport().get_texture().get_image()
-	var path := OS.get_user_data_dir().path_join("stage-only.png")
-	image.save_png(path)
-	print("STAGE-ONLY ", path, " ", image.get_size())

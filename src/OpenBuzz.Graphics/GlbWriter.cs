@@ -194,9 +194,33 @@ public sealed class GlbWriter
     /// Adds a mesh. <paramref name="groups"/> maps a material index to the
     /// triangle indices that use it, so each becomes one primitive.
     /// </summary>
+    /// <summary>
+    /// A node's placement, as a 3x3 rotation and a translation, in the column
+    /// -major 4x4 glTF wants. A set piece carries the transform its own root
+    /// frame gives it; without it every piece stacks on the origin.
+    /// </summary>
+    public static float[] NodeMatrix(float[] rotation, float[] translation) =>
+    [
+        rotation[0], rotation[1], rotation[2], 0,
+        rotation[3], rotation[4], rotation[5], 0,
+        rotation[6], rotation[7], rotation[8], 0,
+        translation[0], translation[1], translation[2], 1,
+    ];
+
+    /// A node that draws nothing and only marks a spot - where a contestant
+    /// stands, where the clock hangs.
+    public int AddEmpty(string name, float[]? matrix = null)
+    {
+        _nodes.Add(matrix is null
+            ? new Dictionary<string, object> { ["name"] = name }
+            : new Dictionary<string, object> { ["name"] = name, ["matrix"] = matrix });
+        return _nodes.Count - 1;
+    }
+
     public void AddMesh(string name, float[] positions, float[] normals, float[] uvs,
                         IReadOnlyDictionary<int, List<int>> groups,
-                        byte[]? joints = null, float[]? weights = null, int? skin = null)
+                        byte[]? joints = null, float[]? weights = null, int? skin = null,
+                        float[]? matrix = null, object? extras = null)
     {
         int vertices = positions.Length / 3;
         var attributes = new Dictionary<string, int> { ["POSITION"] = AddVec3(positions, bounds: true) };
@@ -222,10 +246,15 @@ public sealed class GlbWriter
 
         _meshes.Add(new { name, primitives });
 
-        if (skinned)
-            _nodes.Add(new { name, mesh = _meshes.Count - 1, skin = skin!.Value });
-        else
-            _nodes.Add(new { name, mesh = _meshes.Count - 1 });
+        var node = new Dictionary<string, object> { ["name"] = name, ["mesh"] = _meshes.Count - 1 };
+        if (skinned) node["skin"] = skin!.Value;
+        if (extras is not null) node["extras"] = extras;
+
+        // A skinned mesh is placed by its joints, so a node matrix on top of
+        // that would move it twice.
+        if (matrix is not null && !skinned) node["matrix"] = matrix;
+
+        _nodes.Add(node);
     }
 
     public void Write(string path)

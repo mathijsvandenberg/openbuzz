@@ -8,10 +8,10 @@ bg_color = Color(0.11, 0.11, 0.13, 1)
 
 [sub_resource type="Environment" id="StageEnv"]
 background_mode = 1
-background_color = Color(0.035, 0.04, 0.06, 1)
+background_color = Color(0.02, 0.02, 0.035, 1)
 ambient_light_source = 1
-ambient_light_color = Color(0.36, 0.34, 0.42, 1)
-ambient_light_energy = 1.0
+ambient_light_color = Color(0.42, 0.4, 0.5, 1)
+ambient_light_energy = 1.1
 
 [node name="Round" type="Control"]
 layout_mode = 3
@@ -20,49 +20,58 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1_round")
 
-[node name="StageView" type="SubViewportContainer" parent="."]
-mouse_filter = 2
-layout_mode = 1
-anchors_preset = 11
-anchor_left = 0.76
+[node name="ScreenContent" type="SubViewport" parent="."]
+unique_name_in_owner = true
+disable_3d = true
+transparent_bg = false
+handle_input_locally = false
+size = Vector2i(640, 480)
+render_target_update_mode = 4
+
+[node name="RoundCanvas" type="Control" parent="ScreenContent"]
+unique_name_in_owner = true
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_bottom = -34.0
-stretch = true
 
-[node name="SubViewport" type="SubViewport" parent="StageView"]
-handle_input_locally = false
-size = Vector2i(298, 686)
-render_target_update_mode = 4
-transparent_bg = false
-
-[node name="Stage" type="Node3D" parent="StageView/SubViewport"]
-script = ExtResource("2_stage")
-
-[node name="Camera" type="Camera3D" parent="StageView/SubViewport/Stage"]
-
-[node name="Key" type="DirectionalLight3D" parent="StageView/SubViewport/Stage"]
-transform = Transform3D(0.79, -0.36, 0.49, 0, 0.81, 0.59, -0.61, -0.47, 0.64, 0, 3, 0)
-light_color = Color(1, 0.95, 0.88, 1)
-light_energy = 2.6
-shadow_enabled = true
-
-[node name="Rim" type="DirectionalLight3D" parent="StageView/SubViewport/Stage"]
-transform = Transform3D(-0.66, 0.32, -0.68, 0, 0.9, 0.43, 0.75, 0.28, -0.6, 0, 3, 0)
-light_color = Color(0.72, 0.66, 1, 1)
-light_energy = 1.4
-
-[node name="Env" type="WorldEnvironment" parent="StageView/SubViewport/Stage"]
-environment = SubResource("StageEnv")
-
-[node name="RoundCanvas" type="Control" parent="."]
-unique_name_in_owner = true
+[node name="StageView" type="SubViewportContainer" parent="."]
+mouse_filter = 2
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 260.0
 offset_bottom = -34.0
+stretch = true
+
+[node name="SubViewport" type="SubViewport" parent="StageView"]
+unique_name_in_owner = true
+handle_input_locally = false
+size = Vector2i(980, 686)
+render_target_update_mode = 4
+transparent_bg = false
+
+[node name="Stage" type="Node3D" parent="StageView/SubViewport"]
+unique_name_in_owner = true
+script = ExtResource("2_stage")
+
+[node name="Camera" type="Camera3D" parent="StageView/SubViewport/Stage"]
+fov = 45.0
+near = 1.0
+far = 20000.0
+
+[node name="Key" type="DirectionalLight3D" parent="StageView/SubViewport/Stage"]
+transform = Transform3D(0.79, -0.36, 0.49, 0, 0.81, 0.59, -0.61, -0.47, 0.64, 0, 3, 0)
+light_color = Color(1, 0.96, 0.9, 1)
+light_energy = 1.6
+
+[node name="Rim" type="DirectionalLight3D" parent="StageView/SubViewport/Stage"]
+transform = Transform3D(-0.66, 0.32, -0.68, 0, 0.9, 0.43, 0.75, 0.28, -0.6, 0, 3, 0)
+light_color = Color(0.74, 0.68, 1, 1)
+light_energy = 0.9
+
+[node name="Env" type="WorldEnvironment" parent="StageView/SubViewport/Stage"]
+environment = SubResource("StageEnv")
 
 [node name="Sidebar" type="PanelContainer" parent="."]
 layout_mode = 1

@@ -27,6 +27,16 @@ public static class ModelExport
             var data = File.ReadAllBytes(path);
             var tree = RwStream.Parse(data);
 
+            // A set names its clumps and a costume does not, so the names are
+            // what tells them apart. Taking the costume path on a set kept one
+            // piece out of forty and threw the names away with the rest.
+            var pieces = RwSet.Parse(data);
+            if (pieces.Count > 1)
+            {
+                written += WriteSet(data, pieces, outDir, path) ? 1 : 0;
+                continue;
+            }
+
             // A costume ships the same meshes three times over - once as plain
             // geometry and twice more as PS2 native - in three clumps. Exporting
             // all of them just stacks identical bodies on top of each other, so
@@ -115,6 +125,108 @@ public static class ModelExport
 
         Console.WriteLine($"Wrote {written} models to {outDir}; {rigged} rigged, {animated} clips");
         return 0;
+    }
+
+    /// <summary>
+    /// Writes a set as its pieces, each a node under the name the stream gave
+    /// it and placed by its own root frame. The markers become empty nodes:
+    /// DUMMYNODE_CONTESTANT_1 is where a player stands, and a camera or a
+    /// character has to be able to ask for it by name.
+    /// </summary>
+    private static bool WriteSet(byte[] data, List<RwSetPiece> pieces, string outDir, string path)
+    {
+        var glb = new GlbWriter();
+        var textures = EmbedTextures(glb, data);
+        var materials = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        int drawn = 0, marks = 0;
+
+        foreach (var piece in pieces)
+        {
+            var placement = GlbWriter.NodeMatrix(piece.Matrix, piece.Translation);
+
+            // A marker carries placeholder geometry, but drawing it would put
+            // a box where a contestant should stand.
+            if (piece.Clump is null || piece.IsMarker)
+            {
+                glb.AddEmpty(piece.Name, MarkerPlacement(data, piece, placement));
+                marks++;
+                continue;
+            }
+
+            var clump = RwStream.ParseAt(data, piece.Clump.DataOffset, piece.Clump.Size);
+            var geometries = RwStream.Flatten(clump)
+                                     .Where(n => n.Id == RwId.Geometry)
+                                     .Select(n => RwGeometry.Parse(data, n))
+                                     .Where(g => g.Positions.Length > 0)
+                                     .ToList();
+
+            if (geometries.Count == 0)
+            {
+                glb.AddEmpty(piece.Name, placement);
+                marks++;
+                continue;
+            }
+
+            foreach (var (geometry, index) in geometries.Select((g, i) => (g, i)))
+            {
+                var groups = new Dictionary<int, List<int>>();
+                foreach (var t in geometry.Triangles)
+                {
+                    var texture = t.Material < geometry.MaterialTextures.Length
+                        ? geometry.MaterialTextures[t.Material] : "";
+                    if (!materials.TryGetValue(texture, out int material))
+                    {
+                        material = glb.AddMaterial(string.IsNullOrEmpty(texture) ? "untextured" : texture,
+                                                   textures.TryGetValue(texture, out int tex) ? tex : null);
+                        materials[texture] = material;
+                    }
+                    if (!groups.TryGetValue(material, out var list)) groups[material] = list = [];
+                    list.Add(t.A); list.Add(t.B); list.Add(t.C);
+                }
+
+                var name = geometries.Count == 1 ? piece.Name : $"{piece.Name}_{index}";
+                // The render state travels with the piece, because a flare
+                // drawn opaque is a black slab and the set is full of them.
+                glb.AddMesh(name, geometry.Positions, geometry.Normals, geometry.TexCoords, groups,
+                            matrix: placement,
+                            extras: new { render = piece.Render });
+                drawn++;
+            }
+        }
+
+        if (drawn == 0) return false;
+
+        glb.Write(Path.Combine(outDir, Path.GetFileNameWithoutExtension(path) + ".glb"));
+        Console.WriteLine($"  {Path.GetFileNameWithoutExtension(path)}: {drawn} pieces, {marks} markers");
+        return true;
+    }
+
+    /// A marker's own root frame is usually identity, with the spot it marks
+    /// held in the geometry instead. When that is so, the centre of its
+    /// placeholder box is the spot.
+    private static float[] MarkerPlacement(byte[] data, RwSetPiece piece, float[] placement)
+    {
+        if (piece.Clump is null) return placement;
+
+        var clump = RwStream.ParseAt(data, piece.Clump.DataOffset, piece.Clump.Size);
+        var geometry = RwStream.Flatten(clump)
+                               .Where(n => n.Id == RwId.Geometry)
+                               .Select(n => RwGeometry.Parse(data, n))
+                               .FirstOrDefault(g => g.Positions.Length > 0);
+        if (geometry is null) return placement;
+
+        float[] lo = [float.MaxValue, float.MaxValue, float.MaxValue];
+        float[] hi = [float.MinValue, float.MinValue, float.MinValue];
+        for (int v = 0; v + 2 < geometry.Positions.Length; v += 3)
+            for (int a = 0; a < 3; a++)
+            {
+                lo[a] = Math.Min(lo[a], geometry.Positions[v + a]);
+                hi[a] = Math.Max(hi[a], geometry.Positions[v + a]);
+            }
+
+        var centre = new float[3];
+        for (int a = 0; a < 3; a++) centre[a] = placement[12 + a] + (lo[a] + hi[a]) * 0.5f;
+        return [.. placement[..12], centre[0], centre[1], centre[2], 1];
     }
 
     private static List<RwNode> Clumps(List<RwNode> tree) =>

@@ -27,8 +27,11 @@ const COLOURS := [
 	Color(0.96, 0.85, 0.20),   # yellow
 ]
 
-## The atlas sprites for the four answer squares, in the same order.
-const ANSWER_SPRITES := ["PIP_answer_B", "PIP_answer_O", "PIP_answer_G", "PIP_answer_Y"]
+## The answer markers are the rounded colour squares from the round-start
+## sheet. PIP_answer_* are the round buzzer discs and belong on a player card,
+## which is what they were wrongly doing here.
+const ANSWER_SPRITES := ["RS_dot_blue", "RS_dot_orange", "RS_dot_green", "RS_dot_yellow"]
+const BUZZER_SPRITES := ["PIP_answer_B", "PIP_answer_O", "PIP_answer_G", "PIP_answer_Y"]
 const PLACE_SPRITES := ["PIP_1st", "PIP_2nd", "PIP_3rd", "PIP_4th"]
 
 ## The icon the round intro puts beside its title, one per round.
@@ -44,25 +47,25 @@ const ROUND_ICONS := {
 ## whose hash the port has not cracked, so the table has no entry for them.
 const ORDINALS := ["EERSTE", "TWEEDE", "DERDE", "VIERDE", "VIJFDE", "ZESDE", "ZEVENDE"]
 
-## The screen covers the left of the frame; the strip on the right is left
-## clear so the hostess standing in the 3D layer behind is not painted over.
-const SCREEN_WIDTH := 0.80
+## The canvas is the studio jumbotron now, so it is the whole screen: no strip
+## is kept clear, because the hostess stands beside it in the set rather than
+## being painted over it.
+const PANEL := CANVAS
 
-## Layout, measured off the reference shots as fractions of the screen panel
-## and written here in canvas units. The panel is 512 x 480.
-const PANEL := Vector2(CANVAS.x * SCREEN_WIDTH, CANVAS.y)
-const CLOCK_CENTRE := Vector2(46, 52)
-const CLOCK_RADIUS := 31.0
-const QUESTION_BOX := Rect2(92, 16, PANEL.x - 122, 68)
-const ANSWER_TOP := 116.0
+## Layout, as fractions of the screen measured off the reference shots and
+## written here in the game's own 640 x 480.
+const CLOCK_CENTRE := Vector2(48, 45)
+const CLOCK_RADIUS := 40.0
+const QUESTION_BOX := Rect2(122, 12, PANEL.x - 146, 70)
+const ANSWER_TOP := 113.0
 const ANSWER_STEP := 59.0
-const ANSWER_SQUARE := 26.0
-const ANSWER_LEFT := 82.0
-const ANSWER_TEXT := 118.0
-const CARD_LEFT := 76.0
-const CARD_TOP := 352.0
-const CARD_SIZE := 84.0
-const CARD_BAR := 26.0
+const ANSWER_SQUARE := 30.0
+const ANSWER_LEFT := 102.0
+const ANSWER_TEXT := 148.0
+const CARD_LEFT := 102.0
+const CARD_TOP := 338.0
+const CARD_SIZE := 101.0
+const CARD_BAR := 31.0
 const CARD_GAP := 10.0
 
 const CHASE_STEP := 0.16
@@ -76,6 +79,8 @@ const REVEAL_SHARE := 0.40
 enum Phase { INTRO, PLAYING, PICKING, REVEAL, DONE }
 
 @onready var _canvas: Control = %RoundCanvas
+@onready var _screen: SubViewport = %ScreenContent
+@onready var _stage: Studio = %Stage
 @onready var _status: Label = %RoundStatus
 @onready var _audio: AudioStreamPlayer = %Audio
 @onready var _list: ItemList = %Rounds
@@ -134,6 +139,10 @@ var _asked := 0
 
 
 func _ready() -> void:
+	var seats := OS.get_cmdline_user_args().find("--players")
+	if seats >= 0 and seats + 1 < OS.get_cmdline_user_args().size():
+		_players = clampi(int(OS.get_cmdline_user_args()[seats + 1]), 1, PLAYERS)
+
 	if not _bundle.load_from(Bundle.base_dir()):
 		_status.text = "Could not find extracted/godot2d. Run 'obz bundle' first."
 		return
@@ -154,14 +163,14 @@ func _ready() -> void:
 		_list.add_item(RoundRules.title(r, _bundle.text))
 	_list.item_selected.connect(_pick)
 
+	# The round is drawn into its own viewport and that viewport is hung on
+	# the studio jumbotron, so the screen in shot is the set's own screen.
+	_stage.build(_screen.get_texture(), _players)
+
 	_find_pad()
 	_lamps.start(Bundle.base_dir())
 	var args := OS.get_cmdline_user_args()
 	_demo = args.has("--demo")
-
-	var seats := args.find("--players")
-	if seats >= 0 and seats + 1 < args.size():
-		_players = clampi(int(args[seats + 1]), 1, PLAYERS)
 
 	var start := 3
 	var at := args.find("--round")
@@ -677,20 +686,12 @@ func _phase_name() -> String:
 # ---------------------------------------------------------------- drawing
 
 func _draw_round() -> void:
-	var view := _canvas.size
-	var scale := minf(view.x / CANVAS.x, view.y / CANVAS.y)
-	var offset := (view - CANVAS * scale) * 0.5
+	# The canvas is its own 640x480 viewport now - the size the game drew at -
+	# so there is no letterboxing left to do and the panel is the whole frame.
+	var scale := _canvas.size.x / CANVAS.x
+	var offset := Vector2.ZERO
 
-	# The screen panel, drawn over the studio rather than instead of it.
-	var screen := Rect2(offset, PANEL * scale)
-	_canvas.draw_rect(screen, Color(0.09, 0.12, 0.18, 0.90))
-	_canvas.draw_rect(screen, Color(0.40, 0.47, 0.62, 0.55), false, 2.0 * scale)
-
-	# A faint horizontal seam, as on the game's back-projected wall.
-	for band in range(1, 4):
-		var y := screen.position.y + screen.size.y * band / 4.0
-		_canvas.draw_line(Vector2(screen.position.x, y),
-			Vector2(screen.end.x, y), Color(1, 1, 1, 0.045), 1.0)
+	_draw_screen_surface(offset, scale)
 
 	if _questions.is_empty() or _round.is_empty():
 		return
@@ -731,6 +732,30 @@ func _line(offset: Vector2, scale: float, style: String, body: String,
 
 
 # ---------------------------------------------------------------- intro
+
+## The jumbotron face: a blue-grey wash, brighter at the top, ruled into
+## panels. This is the one part of the screen with no sprite behind it - the
+## reference shows a back-projected wall, and the set carries it as texture on
+## geometry the port draws over.
+func _draw_screen_surface(offset: Vector2, scale: float) -> void:
+	var screen := Rect2(offset, PANEL * scale)
+	var bands := 24
+	for i in range(bands):
+		var t := float(i) / float(bands - 1)
+		var strip := Rect2(screen.position + Vector2(0, screen.size.y * t / 1.0),
+			Vector2(screen.size.x, screen.size.y / bands + 1.0))
+		_canvas.draw_rect(strip, Color(0.13, 0.17, 0.24).lerp(Color(0.07, 0.09, 0.14), t))
+
+	# The panel seams: four across and four down, as on the studio wall.
+	for column in range(1, 4):
+		var x := screen.position.x + screen.size.x * column / 4.0
+		_canvas.draw_line(Vector2(x, screen.position.y), Vector2(x, screen.end.y),
+			Color(1, 1, 1, 0.05), maxf(scale, 1.0))
+	for band in range(1, 4):
+		var y := screen.position.y + screen.size.y * band / 4.0
+		_canvas.draw_line(Vector2(screen.position.x, y), Vector2(screen.end.x, y),
+			Color(1, 1, 1, 0.05), maxf(scale, 1.0))
+
 
 func _draw_intro(offset: Vector2, scale: float) -> void:
 	var icon: String = ROUND_ICONS.get(str(_round.get("id", "")), "")
@@ -913,8 +938,8 @@ func _draw_cards(offset: Vector2, scale: float) -> void:
 		# The chosen answer sits in the corner of the portrait, as in the game.
 		if answered:
 			var swatch: Color = COLOURS[_answers[p]] if _phase == Phase.REVEAL else Color(0.55, 0.58, 0.66)
-			_sprite(offset, scale, ANSWER_SPRITES[_answers[p]],
-				x + CARD_SIZE - 24, CARD_TOP + CARD_SIZE - 24, 18, 18,
+			_sprite(offset, scale, BUZZER_SPRITES[_answers[p]],
+				x + CARD_SIZE - 28, CARD_TOP + CARD_SIZE - 28, 22, 22,
 				Color.WHITE if _phase == Phase.REVEAL else swatch)
 
 		# The name bar carries the buzz time in the speed round, because that
