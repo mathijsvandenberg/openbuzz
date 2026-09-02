@@ -140,3 +140,21 @@ Four things that only showed up on real hardware:
   couple of questions.
 - **One answer at a time looked broken.** It is deliberate in Snap and Trigger
   Finger, so those rounds now say so on screen and show which of the four is up.
+
+## Playing without the hardware
+
+The window carries four handsets on the right. Click their buttons, or use the
+real buzzers - both go through the same path, so what works on one works on the
+other, and the lamp dots mirror whatever the game is driving on the hardware.
+
+Seats are claimed, not assigned. On the choose-a-place screen a handset takes a
+seat by pressing that seat's colour - blue, orange, green, yellow for one to
+four - which is why pad 4 is not necessarily in seat 4. That is how the game
+does it: `ChoosePositions` maps devices to seats and can clear, compact and
+restart those mappings.
+
+Any seat still empty after a few seconds goes to the bot, which claims it,
+starts the round and answers with a stagger so the reveal does not fire at once.
+It is right about half the time, so scores move without being perfect. A party
+round needs at least two players and most testing happens with one person at a
+desk.

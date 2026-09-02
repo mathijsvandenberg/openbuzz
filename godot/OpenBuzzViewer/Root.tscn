@@ -1,10 +1,16 @@
-[gd_scene load_steps=7 format=3 uid="uid://c8obzroot001"]
+[gd_scene load_steps=9 format=3 uid="uid://c8obzroot001"]
 
 [ext_resource type="Script" path="res://Root.gd" id="0_root"]
 [ext_resource type="PackedScene" path="res://Main.tscn" id="1_models"]
 [ext_resource type="PackedScene" path="res://A2d.tscn" id="2_a2d"]
 [ext_resource type="PackedScene" path="res://Round.tscn" id="3_round"]
 [ext_resource type="Script" path="res://LogPanel.gd" id="4_log"]
+[ext_resource type="Script" path="res://VirtualPad.gd" id="5_pad"]
+
+[sub_resource type="StyleBoxFlat" id="PadBox"]
+bg_color = Color(0.1, 0.105, 0.125, 1)
+border_width_left = 1
+border_color = Color(0.24, 0.26, 0.32, 1)
 
 [sub_resource type="StyleBoxFlat" id="LogBox"]
 bg_color = Color(0.04, 0.05, 0.07, 0.93)
@@ -19,6 +25,7 @@ border_color = Color(0.3, 0.34, 0.42, 1)
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+offset_right = -320.0
 tab_alignment = 1
 script = ExtResource("0_root")
 
@@ -57,3 +64,13 @@ bbcode_enabled = false
 scroll_following = true
 theme_override_colors/default_color = Color(0.78, 0.84, 0.92, 1)
 theme_override_font_sizes/normal_font_size = 12
+
+[node name="Pad" type="PanelContainer" parent="Overlay"]
+unique_name_in_owner = true
+anchors_preset = 11
+anchor_left = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -320.0
+theme_override_styles/panel = SubResource("PadBox")
+script = ExtResource("5_pad")

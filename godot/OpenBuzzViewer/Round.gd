@@ -146,7 +146,33 @@ const CLOCK_PLACEHOLDER := Rect2(12, 10, 76, 76)
 const CHASE_STEP := 0.16
 const CUE_STEP := 1.0
 
-enum Phase { INTRO, PLAYING, PICKING, REVEAL, DONE }
+enum Phase { SEATING, INTRO, PLAYING, PICKING, REVEAL, DONE }
+
+## <summary>
+## Which handset took which seat, and the other way round.
+##
+## Not hardwired, because the game is not: ChoosePositions maps devices to
+## seats and can clear, compact and restart those mappings, so handset 4 is
+## only in seat 4 if that is the colour its player pressed. A seat is claimed
+## by pressing its colour - blue, orange, green, yellow for seats one to four,
+## which is the order the choose-a-place screen shows them in.
+## </summary>
+var _seat_of_handset := [-1, -1, -1, -1]
+var _handset_of_seat := [-1, -1, -1, -1]
+
+## Whether the seats have been settled this session. Claiming happens once,
+## not before every round.
+var _seated := false
+
+## Seats a bot is playing. Testing alone still needs two players.
+var _bot_seats := {}
+var _bot_clock := 0.0
+
+## How long the claim screen waits before a bot fills the empty seats.
+const BOT_FILL_AFTER := 6.0
+
+## And how long it then reads the round intro before starting.
+const BOT_START_AFTER := 3.0
 
 @onready var _canvas: Control = %RoundCanvas
 @onready var _screen: SubViewport = %ScreenContent
@@ -156,6 +182,7 @@ enum Phase { INTRO, PLAYING, PICKING, REVEAL, DONE }
 @onready var _list: ItemList = %Rounds
 @onready var _blurb: Label = %Blurb
 
+var _virtual_pad: Node = null
 var _bundle := Bundle.new()
 var _lamps := Lamps.new()
 var _pad := -1
@@ -236,6 +263,11 @@ func _ready() -> void:
 	# The round is drawn into its own viewport and that viewport is hung on
 	# the studio jumbotron, so the screen in shot is the set's own screen.
 	_stage.build(_screen.get_texture(), _players)
+
+	var pad := get_tree().current_scene.find_child("Pad", true, false)
+	if pad != null and pad.has_signal("pressed"):
+		pad.pressed.connect(_on_handset)
+		_virtual_pad = pad
 
 	_find_pad()
 	_lamps.start(Bundle.base_dir())
@@ -335,7 +367,8 @@ func _select_round_dict(round: Dictionary) -> void:
 	# count carried over and every round after the first handed on after one.
 	_asked = 0
 	_note = ""
-	_phase = Phase.INTRO
+	_phase = Phase.SEATING if _players > 1 and not _seated else Phase.INTRO
+	_bot_clock = BOT_FILL_AFTER
 	_audio.stop()
 	_lamps.all(true)
 	if _demo:
@@ -400,8 +433,25 @@ func _start_question() -> void:
 func _process(delta: float) -> void:
 	_poll_buttons()
 
+	if _phase == Phase.SEATING:
+		_bot_clock -= delta
+		if _claimed_count() >= _players or _bot_clock <= 0.0:
+			_fill_with_bots()
+			_seated = true
+			_phase = Phase.INTRO
+			_bot_clock = BOT_START_AFTER
+
+	elif _phase == Phase.INTRO and not _bot_seats.is_empty():
+		# A round with nobody human in it would otherwise sit on the intro
+		# waiting for a press that is never coming.
+		_bot_clock -= delta
+		if _bot_clock <= 0.0:
+			Log.trace("bot", "starting the round")
+			_start_question()
+
 	if _phase == Phase.PLAYING:
 		_clock -= delta
+		_bot_play(delta)
 		_advance(delta)
 	elif _phase == Phase.PICKING:
 		# A pick has to be able to time out, or a round where nobody presses
@@ -501,6 +551,29 @@ func _all_in() -> bool:
 
 
 ## Nobody picked in time: the question just ends, unscored.
+func _claimed_count() -> int:
+	var n := 0
+	for seat in range(_players):
+		if _handset_of_seat[seat] >= 0:
+			n += 1
+	return n
+
+
+## The bot answers for the seats nobody took. It waits a beat, the way a person
+## does, so the reveal does not fire the instant a question appears.
+func _bot_play(_delta: float) -> void:
+	for seat in _bot_seats:
+		if seat >= _players or _answers[seat] != -1:
+			continue
+		var think: float = 1.0 + float(seat) * 0.8
+		if float(_round.seconds) - _clock < think:
+			continue
+		# Right about half the time, so the scores move without being perfect.
+		var pick: int = _correct if randf() < 0.5 else randi() % 4
+		_answer(seat, pick)
+		Log.trace("bot", "seat %d answered %d" % [seat + 1, pick])
+
+
 func _give_up_pick() -> void:
 	_phase = Phase.REVEAL
 	_clock = 3.0
@@ -646,8 +719,74 @@ func _poll_buttons() -> void:
 			var was: bool = _held.get(button, false)
 			_held[button] = down
 			if down and not was:
-				_last_button = "player %d, %s (raw %d)" % [player + 1, BUTTON_NAMES[slot], button]
-				_press(player, slot)
+				# Real hardware goes through the same mapping as the on-screen
+				# pad, so a claimed seat means the same thing either way.
+				_on_handset(player, slot)
+
+
+## A press from a handset, real or on screen. Everything routes through here
+## so the virtual pad and the hardware cannot drift apart.
+func _on_handset(handset: int, slot: int) -> void:
+	_last_button = "pad %d, %s" % [handset + 1, BUTTON_NAMES[slot]]
+
+	if _phase == Phase.SEATING:
+		_claim(handset, slot)
+		return
+
+	var seat: int = _seat_of_handset[handset]
+	if seat < 0:
+		# Unclaimed handsets still work outside a claim screen, so a quick test
+		# does not have to sit through seating first.
+		seat = handset
+	_press(seat, slot)
+
+
+## Claims a seat for a handset, by the colour pressed.
+func _claim(handset: int, slot: int) -> void:
+	var seat := ANSWER_BUTTONS.find(slot)
+	if seat < 0 or seat >= _players:
+		return
+	if _handset_of_seat[seat] >= 0 and _handset_of_seat[seat] != handset:
+		Log.info("seat", "seat %d already taken by pad %d" % [
+			seat + 1, _handset_of_seat[seat] + 1])
+		return
+
+	# A handset only ever holds one seat, so taking a new one frees the old.
+	var had: int = _seat_of_handset[handset]
+	if had >= 0:
+		_handset_of_seat[had] = -1
+
+	_seat_of_handset[handset] = seat
+	_handset_of_seat[seat] = handset
+	_bot_seats.erase(seat)
+
+	Log.info("seat", "pad %d took seat %d (%s)" % [handset + 1, seat + 1, BUTTON_NAMES[slot]])
+	_refresh_pad()
+	_set_lamps([_handset_of_seat[0] >= 0, _handset_of_seat[1] >= 0,
+		_handset_of_seat[2] >= 0, _handset_of_seat[3] >= 0])
+
+
+## Fills the seats nobody took, so one person can still play a party round.
+func _fill_with_bots() -> void:
+	for seat in range(_players):
+		if _handset_of_seat[seat] < 0:
+			_bot_seats[seat] = true
+	if not _bot_seats.is_empty():
+		Log.info("seat", "bot playing seats %s" % str(_bot_seats.keys()))
+	_refresh_pad()
+
+
+## Lamps go to the hardware and to the on-screen pad together, so what is lit
+## on a real buzzer is lit on screen.
+func _set_lamps(state: Array) -> void:
+	_lamps.set_lamps(state)
+	if _virtual_pad != null:
+		_virtual_pad.set_lamps(state)
+
+
+func _refresh_pad() -> void:
+	if _virtual_pad != null:
+		_virtual_pad.set_seats(_seat_of_handset)
 
 
 func _press(player: int, slot: int) -> void:
@@ -734,7 +873,7 @@ func _answer(player: int, choice: int) -> void:
 		player + 1, choice, "correct" if choice == _correct else "wrong", _times[player]])
 
 	if int(_round.input) == RoundRules.Mode.ALL:
-		_lamps.set_lamps([_answers[0] == -1, _answers[1] == -1, _answers[2] == -1, _answers[3] == -1])
+		_set_lamps([_answers[0] == -1, _answers[1] == -1, _answers[2] == -1, _answers[3] == -1])
 
 
 ## How much of a string Flitsronde has typed out. Every line on screen is cut
@@ -781,6 +920,7 @@ func _phase_name_of(p: int) -> String:
 
 func _phase_name() -> String:
 	match _phase:
+		Phase.SEATING: return "choose a place - %0.0fs" % maxf(_bot_clock, 0.0)
 		Phase.INTRO: return "press a button to start"
 		Phase.PLAYING: return "playing - %0.1fs" % maxf(_clock, 0.0)
 		Phase.PICKING: return "waiting for a pick"
@@ -802,6 +942,8 @@ func _draw_round() -> void:
 		return
 
 	match _phase:
+		Phase.SEATING:
+			_draw_seating(offset, scale)
 		Phase.INTRO:
 			_draw_intro(offset, scale)
 		Phase.DONE:
@@ -860,6 +1002,50 @@ func _draw_screen_surface(offset: Vector2, scale: float) -> void:
 		var y := screen.position.y + screen.size.y * band / 4.0
 		_canvas.draw_line(Vector2(screen.position.x, y), Vector2(screen.end.x, y),
 			Color(1, 1, 1, 0.05), maxf(scale, 1.0))
+
+
+## The choose-a-place screen. A handset claims a seat by pressing that seat's
+## colour, which is why a pad is never tied to a position.
+func _draw_seating(offset: Vector2, scale: float) -> void:
+	_text(offset, scale, "RoundInstructionsLarge", "KIES EEN PLAATS",
+		L.title.position.x, L.title.position.y + 40, L.title.size.x, 54, 1.1,
+		Color.WHITE, "Centre")
+
+	var block: Rect2 = L.block
+	var pitch: float = block.size.x + float(L.block_gap)
+
+	for seat in range(_players):
+		var x: float = block.position.x + seat * pitch
+		var top: float = block.position.y
+		var side: float = block.size.x
+		var taken: bool = _handset_of_seat[seat] >= 0
+		var tint := Color(1.4, 1.4, 1.4) if taken else Color(0.5, 0.52, 0.6)
+
+		_sprite(offset, scale, "PortraitSurroundGrey", x, top, side, side, tint)
+		_sprite(offset, scale, "ViewportBarGrey", x, top + side, side, side * 0.31, tint)
+
+		_text(offset, scale, "RoundInstructionsSmall", "SPELER %d" % (seat + 1),
+			x, top + side + 5, side, 18, 0.62, Color.WHITE, "Centre")
+
+		# The colour that claims this seat.
+		var icon: float = float(L.icon_size) * 1.4
+		_sprite(offset, scale, ANSWER_SPRITES[seat],
+			x + side * 0.5 - icon * 0.5, top - icon - 12, icon, icon,
+			Color.WHITE if not taken else Color(0.45, 0.48, 0.55))
+
+		var caption := "DRUK OP"
+		if taken:
+			caption = "PAD %d" % (_handset_of_seat[seat] + 1)
+		elif _bot_seats.has(seat):
+			caption = "BOT"
+		_text(offset, scale, "RoundInstructionsSmall", caption,
+			x, top + side * 0.42, side, 20, 0.6,
+			Color(0.95, 0.83, 0.35) if taken else Color(0.78, 0.81, 0.88), "Centre")
+
+	_text(offset, scale, "RoundInstructionsSmall",
+		"NOG %0.0f SECONDEN - LEGE PLAATSEN GAAN NAAR DE BOT" % maxf(_bot_clock, 0.0),
+		0, block.position.y + block.size.y + 62, PANEL.x, 22, 0.6,
+		Color(0.6, 0.64, 0.72), "Centre")
 
 
 func _draw_intro(offset: Vector2, scale: float) -> void:
