@@ -30,6 +30,14 @@ public static class ModelExport
             // A set names its clumps and a costume does not, so the names are
             // what tells them apart. Taking the costume path on a set kept one
             // piece out of forty and threw the names away with the rest.
+            // A scene file is a BSP world rather than a set of clumps.
+            var worldNode = RwWorld.Find(tree);
+            if (worldNode is not null)
+            {
+                written += WriteWorld(data, worldNode, outDir, path) ? 1 : 0;
+                continue;
+            }
+
             var pieces = RwSet.Parse(data);
             if (pieces.Count > 1)
             {
@@ -227,6 +235,48 @@ public static class ModelExport
         var centre = new float[3];
         for (int a = 0; a < 3; a++) centre[a] = placement[12 + a] + (lo[a] + hi[a]) * 0.5f;
         return [.. placement[..12], centre[0], centre[1], centre[2], 1];
+    }
+
+    /// Writes a world as one node per sector. The sectors are the BSP split,
+    /// not anything the artist named, so they carry no meaningful names.
+    private static bool WriteWorld(byte[] data, RwNode world, string outDir, string path)
+    {
+        var header = RwWorld.ReadHeader(data, world);
+        var textures = RwWorld.ReadMaterialTextures(data, world);
+        var sectors = RwWorld.ReadSectors(data, world, header);
+        if (sectors.Count == 0) return false;
+
+        var glb = new GlbWriter();
+        var embedded = EmbedTextures(glb, data);
+        var materials = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        int triangles = 0;
+        foreach (var (sector, index) in sectors.Select((s, i) => (s, i)))
+        {
+            var groups = new Dictionary<int, List<int>>();
+            foreach (var t in sector.Triangles)
+            {
+                var texture = t.Material < textures.Length ? textures[t.Material] : "";
+                if (!materials.TryGetValue(texture, out int material))
+                {
+                    material = glb.AddMaterial(string.IsNullOrEmpty(texture) ? "untextured" : texture,
+                                               embedded.TryGetValue(texture, out int tex) ? tex : null);
+                    materials[texture] = material;
+                }
+                if (!groups.TryGetValue(material, out var list)) groups[material] = list = [];
+                list.Add(t.A); list.Add(t.B); list.Add(t.C);
+            }
+
+            glb.AddMesh($"WORLD_SECTOR_{index}", sector.Positions, sector.Normals,
+                        sector.TexCoords, groups);
+            triangles += sector.Triangles.Length;
+        }
+
+        glb.Write(Path.Combine(outDir, Path.GetFileNameWithoutExtension(path) + ".glb"));
+        Console.WriteLine($"  {Path.GetFileNameWithoutExtension(path)}: world, " +
+                          $"{sectors.Count} sectors, {triangles} triangles " +
+                          $"(header says {header.TriangleCount}), {textures.Length} materials");
+        return true;
     }
 
     private static List<RwNode> Clumps(List<RwNode> tree) =>

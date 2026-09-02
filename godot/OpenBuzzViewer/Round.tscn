@@ -43,11 +43,12 @@ anchor_bottom = 1.0
 offset_left = 260.0
 offset_bottom = -34.0
 stretch = true
+stretch_shrink = 1
 
 [node name="SubViewport" type="SubViewport" parent="StageView"]
 unique_name_in_owner = true
 handle_input_locally = false
-size = Vector2i(980, 686)
+size = Vector2i(800, 600)
 render_target_update_mode = 4
 transparent_bg = false
 

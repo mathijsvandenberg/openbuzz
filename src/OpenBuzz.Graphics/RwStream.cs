@@ -16,6 +16,8 @@ public static class RwId
     public const uint Texture = 0x06;
     public const uint Material = 0x07;
     public const uint MatList = 0x08;
+    public const uint AtomicSector = 0x09;
+    public const uint PlaneSector = 0x0A;
     public const uint World = 0x0B;
     public const uint Matrix = 0x0D;
     public const uint FrameList = 0x0E;
@@ -54,6 +56,8 @@ public static class RwId
         Texture => "TEXTURE",
         Material => "MATERIAL",
         MatList => "MATLIST",
+        AtomicSector => "ATOMICSECTOR",
+        PlaneSector => "PLANESECTOR",
         World => "WORLD",
         Matrix => "MATRIX",
         FrameList => "FRAMELIST",
@@ -90,7 +94,10 @@ public static class RwId
     public static bool HasChildren(uint id) => id is
         Clump or FrameList or GeometryList or Geometry or Atomic or
         MatList or Material or Texture or TexDictionary or
-        Extension or Light or Camera or World or UvAnimDict;
+        Extension or Light or Camera or World or UvAnimDict or
+        // A world is a BSP: its sectors nest, and without these the tree
+        // stopped at the root and every sector looked like a leaf.
+        PlaneSector or AtomicSector;
 }
 
 /// A node in a RenderWare chunk tree.

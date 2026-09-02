@@ -10,16 +10,17 @@ extends Node3D
 ## and MODEL_PODIUM_MULTI are the two stagings. Nothing here is positioned by
 ## eye; every number comes out of the file.
 ##
-## The one thing the file does not hold is the camera. QuizSupportCode_
-## CameraAngles.luaasm names the angles - CAMERA_SCREEN, CAMERA_CONTESTANTS,
-## CAMERA_HOST, CAMERA_STUDIO, CAMERA_SINGLEPLAYER - but their coordinates live
-## in the executable. CAMERA_SCREEN is therefore derived rather than read: the
-## jumbotron is a flat quad of known size and facing, so squaring the camera to
-## it and backing off far enough to frame it is not a guess.
+## The cameras are data too, and not in the executable as I first thought:
+## StudioCameras.rp2 holds all fifty-one of them as RenderWare CAMERA chunks,
+## under the very names the Lua passes to SetCameraAngle. `obz camera export`
+## writes them to cameras.json and `use_camera` puts one in place exactly -
+## position, orientation, field of view and clip planes, nothing derived.
 
-## The screen the round is played on: a flat quad, 580 x 436, upright, facing
-## +Z, centred at (0, 309, -397). Its own geometry says so.
-const SCREEN_PIECE := "MODEL_JUMBOTRON_INGAME"
+## The round is played on the studio video wall, which is a surface of the
+## world and not a prop: the material WORLD_STUDIO gives it is
+## BZ_Set03_Videowall01. CAMERA_SCREEN frames exactly this and nothing else,
+## which is how it was found - it does not point at MODEL_JUMBOTRON_INGAME.
+const VIDEOWALL_MATERIAL := "BZ_Set03_Videowall01"
 
 ## Pieces that belong to the prize room, which is a different scene.
 ## ANIMATEDMODEL_JUMBOTRON is deliberately not here: it is the cabinet the
@@ -33,6 +34,54 @@ const HIDDEN := [
 var _pieces := {}
 var _root: Node3D = null
 var _render := {}
+var _cameras := {}
+
+
+## The game renders 4:3, and the cameras say so themselves: every one of them
+## has a view window whose aspect is exactly 1.3333.
+const ASPECT := 4.0 / 3.0
+
+
+func load_cameras(bundle_dir: String) -> bool:
+	var path := bundle_dir.path_join("cameras.json")
+	if not FileAccess.file_exists(path):
+		return false
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Dictionary):
+		return false
+	_cameras = parsed
+	return true
+
+
+func camera_names() -> Array:
+	return _cameras.keys()
+
+
+## Puts a camera exactly where the game puts it.
+##
+## RenderWare gives a position, a forward and an up; Godot aims a camera at a
+## point, so the target is one unit along forward. The view window is the
+## half-extent of the frustum at unit distance, so the vertical field of view
+## is 2*atan(window.y) - which the exporter has already worked out.
+func use_camera(name: String, camera: Camera3D) -> bool:
+	if not _cameras.has(name):
+		return false
+
+	var c: Dictionary = _cameras[name]
+	camera.global_position = _vec(c["position"])
+	camera.look_at(_vec(c["target"]), _vec(c["up"]))
+
+	# Keep the height and let the width follow, because the fov the file gives
+	# is a 4:3 frustum and the viewport is rendered 4:3 to match.
+	camera.keep_aspect = Camera3D.KEEP_HEIGHT
+	camera.fov = float(c["fovVertical"])
+	camera.near = maxf(float(c["near"]), 0.05)
+	camera.far = float(c["far"])
+	return true
+
+
+static func _vec(a) -> Vector3:
+	return Vector3(float(a[0]), float(a[1]), float(a[2]))
 
 
 func load_set(models_dir: String) -> bool:
@@ -52,12 +101,35 @@ func load_set(models_dir: String) -> bool:
 	add_child(_root)
 	_index(_root)
 
+	# The set the props stand in. StudioModels holds only the props; the walls,
+	# the floor and the round screen itself are WORLD_STUDIO in StudioScene,
+	# which is what CAMERA_SCREEN is actually pointed at.
+	_load_world(models_dir)
+
 	_render = _read_render_states(path)
 	_apply_render_states()
 
 	for name in HIDDEN:
 		hide_piece(name)
 	return true
+
+
+func _load_world(models_dir: String) -> void:
+	var path := models_dir.path_join("StudioScene.glb")
+	if not FileAccess.file_exists(path):
+		return
+
+	var doc := GLTFDocument.new()
+	var state := GLTFState.new()
+	if doc.append_from_file(path, state) != OK:
+		return
+
+	var scene := doc.generate_scene(state)
+	if scene == null:
+		return
+
+	add_child(scene)
+	_index(scene)
 
 
 ## The render state the exporter carried through, read straight out of the
@@ -94,22 +166,30 @@ static func _read_render_states(path: String) -> Dictionary:
 ## NORM_ADDITIVE_BLENDING state in the file means; drawn opaque they came out
 ## as black slabs standing across the studio.
 func _apply_render_states() -> void:
-	for part in _all_meshes(_root):
+	for part in _all_meshes(self):
 		var mesh := part as MeshInstance3D
 		var state := str(_render.get(str(mesh.name), "NORM_DEFAULT"))
+		if mesh.mesh == null:
+			continue
 
-		var material := StandardMaterial3D.new()
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.albedo_texture = _texture_of(mesh)
-		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+		# Per surface, not material_override: a world sector holds many
+		# materials at once, and an override would flatten them all to one.
+		for i in range(mesh.mesh.get_surface_count()):
+			var base := mesh.mesh.surface_get_material(i) as BaseMaterial3D
+			var material := StandardMaterial3D.new()
+			material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			material.cull_mode = BaseMaterial3D.CULL_DISABLED
+			if base != null:
+				material.albedo_texture = base.albedo_texture
+				material.resource_name = base.resource_name
 
-		if state.contains("ADDITIVE"):
-			material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-			material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		else:
-			material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+			if state.contains("ADDITIVE"):
+				material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+				material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			else:
+				material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
 
-		mesh.material_override = material
+			mesh.set_surface_override_material(i, material)
 
 
 static func _all_meshes(node: Node) -> Array:
@@ -121,11 +201,26 @@ static func _all_meshes(node: Node) -> Array:
 	return out
 
 
-static func _texture_of(mesh: MeshInstance3D) -> Texture2D:
-	if mesh.mesh == null or mesh.mesh.get_surface_count() == 0:
-		return null
-	var base := mesh.mesh.surface_get_material(0) as BaseMaterial3D
-	return null if base == null else base.albedo_texture
+## Hangs a live texture on the studio video wall, so what the round draws is
+## what the studio shows. A screen emits rather than reflects, hence unshaded.
+func show_on_screen(texture: Texture2D) -> int:
+	var hung := 0
+	for part in _all_meshes(self):
+		var mesh := part as MeshInstance3D
+		if mesh.mesh == null:
+			continue
+		for i in range(mesh.mesh.get_surface_count()):
+			var base := mesh.mesh.surface_get_material(i) as BaseMaterial3D
+			if base == null or base.resource_name != VIDEOWALL_MATERIAL:
+				continue
+			var material := StandardMaterial3D.new()
+			material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			material.albedo_texture = texture
+			material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+			material.cull_mode = BaseMaterial3D.CULL_DISABLED
+			mesh.set_surface_override_material(i, material)
+			hung += 1
+	return hung
 
 
 ## Pieces are exported one node per name, but a piece made of several meshes
@@ -180,95 +275,3 @@ func stage_for(players: int) -> void:
 	set_piece_visible("MODEL_PODIUM_SINGLE", not multi)
 	for i in range(1, 5):
 		set_piece_visible("MODEL_PODIUMGLOW_%d" % i, multi or i == 1)
-
-
-# ------------------------------------------------------------------ the screen
-
-## The screen quad in world space: centre, half-width, half-height. Taken from
-## the piece rather than typed in, so it survives a re-export.
-func screen_rect() -> Dictionary:
-	var found := parts(SCREEN_PIECE)
-	if found.is_empty():
-		return {}
-
-	var mesh := found[0] as MeshInstance3D
-	if mesh == null:
-		return {}
-
-	var box := mesh.get_aabb()
-	var basis := mesh.global_transform.basis
-	# The quad is flat in its own XZ, so its local Y is the way it faces.
-	return {
-		centre = mesh.global_transform * box.get_center(),
-		right = basis.x * box.size.x * 0.5,
-		up = -basis.z * box.size.z * 0.5,
-		normal = basis.y.normalized(),
-	}
-
-
-## The whole jumbotron as it appears in shot: the screen and the two light
-## bars. JUMBOFLARES_1 sits directly above the screen and _2 directly below it,
-## which is what makes the lit strips along the top and bottom edge of the
-## reference. Framing the screen alone cropped both of them off.
-const FRAME_PIECES := [SCREEN_PIECE, "MODEL_JUMBOFLARES_1", "MODEL_JUMBOFLARES_2"]
-
-
-## The studio floor, taken from the foot of the jumbotron rather than assumed
-## to be zero.
-func floor_level() -> float:
-	var box := jumbotron_bounds()
-	return box.position.y
-
-
-func jumbotron_bounds() -> AABB:
-	var box := AABB()
-	var first := true
-	for name in FRAME_PIECES:
-		for part in parts(name):
-			var mesh := part as MeshInstance3D
-			if mesh == null:
-				continue
-			var world := mesh.global_transform * mesh.get_aabb()
-			box = world if first else box.merge(world)
-			first = false
-	return box
-
-
-## Squares the camera on the jumbotron and backs off until it frames it.
-## `margin` is how much room to leave round the edge.
-func aim_at_screen(camera: Camera3D, aspect: float, margin := 1.06) -> void:
-	var rect := screen_rect()
-	if rect.is_empty():
-		return
-
-	var box := jumbotron_bounds()
-	var half_w := box.size.x * 0.5 * margin
-	var half_h := box.size.y * 0.5 * margin
-
-	# Godot's fov is vertical, and widens to the horizontal by the aspect, so
-	# whichever of the two needs more distance is the one that decides it.
-	var vertical := tan(deg_to_rad(camera.fov) * 0.5)
-	var distance := maxf(half_h / vertical, half_w / (vertical * maxf(aspect, 0.001)))
-
-	# Square on. The reference shots have the screen's edges parallel to the
-	# frame, so there is no tilt: dropping the camera to eye level to get the
-	# hostess in shot keystoned the screen badly and was the wrong trade.
-	var centre := box.get_center()
-	camera.global_position = centre + (rect.normal as Vector3) * distance
-	camera.look_at(centre, (rect.up as Vector3).normalized())
-
-
-## Hangs a live texture on the screen, so what the round draws is what the
-## studio shows. The piece is a flat quad with its own UVs; an unshaded
-## material is right because a television screen emits rather than reflects.
-func show_on_screen(texture: Texture2D) -> void:
-	for part in parts(SCREEN_PIECE):
-		var mesh := part as MeshInstance3D
-		if mesh == null:
-			continue
-		var material := StandardMaterial3D.new()
-		material.albedo_texture = texture
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-		material.cull_mode = BaseMaterial3D.CULL_DISABLED
-		mesh.material_override = material

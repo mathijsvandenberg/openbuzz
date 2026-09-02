@@ -97,6 +97,19 @@ try
                        Opt(args, "--locale") ?? "NET",
                        int.Parse(Opt(args, "--limit") ?? "400"));
 
+        case "camera":
+        {
+            var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "list";
+            var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "RWStream");
+            return sub switch
+            {
+                "list" => CameraCommands.List(inDir),
+                "export" => CameraCommands.Export(inDir,
+                                Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "cameras.json")),
+                _ => Fail($"unknown camera subcommand '{sub}'"),
+            };
+        }
+
         case "model":
         {
             var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "list";

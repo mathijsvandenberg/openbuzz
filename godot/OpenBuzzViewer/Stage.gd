@@ -37,12 +37,27 @@ func build(screen: Texture2D, players: int) -> bool:
 	if not load_set(dir):
 		return false
 
+	load_cameras(_bundle_dir())
+
 	stage_for(players)
-	if screen != null:
-		show_on_screen(screen)
+	if screen != null and show_on_screen(screen) == 0:
+		push_warning("no video wall surface found; the round has nowhere to draw")
 
 	_add_hostess(dir)
 	return true
+
+
+static func _bundle_dir() -> String:
+	var d := Bundle.base_dir()
+	for i in range(6):
+		var candidate := d.path_join("extracted/godot2d")
+		if DirAccess.dir_exists_absolute(candidate):
+			return candidate
+		var up := d.get_base_dir()
+		if up == d:
+			break
+		d = up
+	return ""
 
 
 static func _find_models() -> String:
@@ -75,28 +90,12 @@ func _add_hostess(dir: String) -> void:
 ## is worth saying, because guessing a scale was what made her look like a
 ## figurine in front of a wall before.
 func _stand_hostess() -> void:
-	var rect := screen_rect()
-	if rect.is_empty():
-		return
 
-	var stand := Vector3.ZERO
 	var lectern := parts(LECTERN)
-	if not lectern.is_empty():
-		stand = (lectern[0] as Node3D).global_position
-
-	# Beside the lectern, on the same floor, turned back towards the screen.
-	_figure.global_position = stand + (rect.right as Vector3).normalized() * HOSTESS_SIDE
+	if lectern.is_empty():
+		return
+	_figure.global_position = (lectern[0] as Node3D).global_position
 	_figure.rotation_degrees = Vector3(0, HOSTESS_TURN, 0)
-
-	if OS.get_cmdline_user_args().has("--stage-report"):
-		var box := AABB()
-		var first := true
-		for m in _meshes_of(_figure):
-			var world: AABB = m.global_transform * m.get_aabb()
-			box = world if first else box.merge(world)
-			first = false
-		print("STAGE lectern=", stand, " screen=", rect.centre)
-		print("STAGE hostess at=", _figure.global_position, " bounds=", box)
 
 
 static func _meshes_of(node: Node) -> Array:
@@ -127,12 +126,19 @@ func _load(path: String) -> Node3D:
 	return scene
 
 
-## The camera has to wait for the viewport to have a size, because the distance
-## that frames the screen depends on the aspect.
+## Which of the game's cameras to look through. --camera names one; the round
+## screen is CAMERA_SCREEN.
+var _angle := "CAMERA_SCREEN"
+
+
 func _process(delta: float) -> void:
-	var view := get_viewport().get_visible_rect().size
-	if not _framed and view.x > 1.0 and view.y > 1.0:
-		aim_at_screen(_camera, view.x / view.y)
+	if not _framed:
+		var args := OS.get_cmdline_user_args()
+		var at := args.find("--camera")
+		if at >= 0 and at + 1 < args.size():
+			_angle = args[at + 1]
+		if not use_camera(_angle, _camera):
+			push_warning("no camera named %s in cameras.json" % _angle)
 		_framed = true
 
 	if _player == null or _clips.is_empty():
