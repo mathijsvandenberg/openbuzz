@@ -10,7 +10,7 @@ config/features=PackedStringArray("4.4", "Forward Plus")
 [display]
 
 window/size/viewport_width=1560
-window/size/viewport_height=720
+window/size/viewport_height=930
 
 [rendering]
 

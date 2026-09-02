@@ -26,6 +26,7 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_right = -320.0
+offset_bottom = -210.0
 tab_alignment = 1
 script = ExtResource("0_root")
 
@@ -43,13 +44,12 @@ layout_mode = 2
 [node name="Overlay" type="CanvasLayer" parent="."]
 
 [node name="LogPanel" type="PanelContainer" parent="Overlay"]
-anchors_preset = 15
+anchors_preset = 12
+anchor_top = 1.0
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 40.0
-offset_top = 40.0
-offset_right = -40.0
-offset_bottom = -40.0
+offset_top = -210.0
+offset_right = -320.0
 theme_override_styles/panel = SubResource("LogBox")
 script = ExtResource("4_log")
 

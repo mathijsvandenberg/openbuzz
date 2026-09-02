@@ -168,6 +168,12 @@ var _seated := false
 var _bot_seats := {}
 var _bot_clock := 0.0
 
+## The pre-game menus and player setup. Null once they have handed over.
+var _front: FrontEnd = null
+
+## How long the join screen stays open, matching the claim screen's own wait.
+var _join_clock := 0.0
+
 ## How long the claim screen waits before a bot fills the empty seats.
 const BOT_FILL_AFTER := 6.0
 
@@ -320,7 +326,96 @@ func _ready() -> void:
 			start = 0
 
 	_list.select(start)
-	_pick(start)
+
+	# --front skips straight to a round, which is what testing wants. Otherwise
+	# the game starts where the game starts: the main menu.
+	if args.has("--round") or args.has("--game") or _demo:
+		_pick(start)
+	else:
+		_open_front_end()
+
+
+## The menus, before any round exists.
+func _open_front_end() -> void:
+	_front = FrontEnd.new(_bundle)
+	_front.finished.connect(_on_front_end_done)
+	_join_clock = BOT_FILL_AFTER
+	Log.info("front", "main menu")
+	_canvas.queue_redraw()
+
+
+## What the menus chose, applied the way the scripts apply it: the length picks
+## the round queue, and the music genre is GameTypeMenu's historical bias.
+func _on_front_end_done(config: Dictionary) -> void:
+	_scores = [0, 0, 0, 0]
+	_banked = [0.0, 0.0, 0.0, 0.0]
+	_index = 0
+
+	_apply_music(str(config.get("music", "all")))
+	_apply_players(config.get("players", []))
+
+	_queue = RoundRules.session(str(config.get("length", "short")))
+	_leg = 0
+	_seated = true
+	_begin_leg()
+
+
+## <summary>
+## The music genre, as SetRoundHistoricalBias.
+##
+## The three menu items call SetRoundHistoricalBiasNone, Early and Late, and
+## those natives store 2, 0 and 1 into the game settings - read out of the
+## handlers at 0x0018DCB0, 0x0018DC18 and 0x0018DC60. That much is the game's.
+##
+## Where the engine puts the line between early and late is not: the field is
+## read from the shared settings object in a hundred places and the selector
+## has not been traced. The split below is this port's, and the year buckets it
+## leans on are the game's own, from the decade classifier at 0x001C8BE0 -
+## before 1960, 1970, 1980, 1990, 1999, which is JAREN '50 through '00.
+## </summary>
+const MUSIC_SPLIT_YEAR := 1980
+
+func _apply_music(genre: String) -> void:
+	if genre == "all" or _questions.is_empty():
+		Log.info("music", "all years, %d questions" % _questions.size())
+		return
+
+	var kept := []
+	for q in _questions:
+		var year := int(q.get("year", 0))
+		if year == 0:
+			continue
+		if (genre == "old") == (year < MUSIC_SPLIT_YEAR):
+			kept.append(q)
+
+	if kept.is_empty():
+		Log.warn("music", "%s left nothing; keeping the whole bank" % genre)
+		return
+	_questions = kept
+	Log.info("music", "%s: %d questions" % [genre, _questions.size()])
+
+
+## Seats the people who joined, in the seats they joined from.
+func _apply_players(players: Array) -> void:
+	_seat_of_handset = [-1, -1, -1, -1]
+	_handset_of_seat = [-1, -1, -1, -1]
+	_bot_seats = {}
+
+	for p in players:
+		var seat := int(p.get("seat", 0))
+		_seat_of_handset[seat] = seat
+		_handset_of_seat[seat] = seat
+
+	_players = maxi(players.size(), 2)
+
+	# The stage was built at load and is not rebuilt here - load_set does not
+	# clear what it already made, so a second build would stand a whole second
+	# studio inside the first. Empty places just lose their contestant.
+	for seat in range(PLAYERS):
+		_stage.set_seat_occupied(seat, _handset_of_seat[seat] >= 0)
+
+	_refresh_pad()
+	Log.info("seat", "%d playing" % players.size())
 
 
 ## `--question <text>` brings the first question mentioning that text to the
@@ -543,6 +638,13 @@ func _start_question() -> void:
 
 func _process(delta: float) -> void:
 	_poll_buttons()
+
+	if _front != null and _front.screen != FrontEnd.Screen.READY:
+		if _front.screen == FrontEnd.Screen.JOIN:
+			_join_clock -= delta
+		_front.advance(_join_clock)
+		_canvas.queue_redraw()
+		return
 
 	if _phase == Phase.SEATING:
 		_bot_clock -= delta
@@ -850,6 +952,11 @@ func _poll_buttons() -> void:
 func _on_handset(handset: int, slot: int) -> void:
 	_last_button = "pad %d, %s" % [handset + 1, BUTTON_NAMES[slot]]
 
+	# The front end owns every handset until it hands the game a config.
+	if _front != null and _front.screen != FrontEnd.Screen.READY:
+		_front.press(handset, slot)
+		return
+
 	if _phase == Phase.SEATING:
 		_claim(handset, slot)
 		return
@@ -1063,6 +1170,10 @@ func _draw_round() -> void:
 
 	_draw_screen_surface(offset, scale)
 
+	if _front != null and _front.screen != FrontEnd.Screen.READY:
+		_draw_front(offset, scale)
+		return
+
 	if _questions.is_empty() or _round.is_empty():
 		return
 
@@ -1131,6 +1242,82 @@ func _draw_screen_surface(offset: Vector2, scale: float) -> void:
 
 ## The choose-a-place screen. A handset claims a seat by pressing that seat's
 ## colour, which is why a pad is never tied to a position.
+## The menus and the player setup, drawn on the jumbotron - which is where the
+## game puts them too, since every menu script sets SCENE2D_MAIN.
+func _draw_front(offset: Vector2, scale: float) -> void:
+	_line(offset, scale, "title", _front.title(), 60, 26, 520, 44, 30,
+		Color(1, 0.93, 0.6), "Centre")
+
+	var list: Array = _front.items()
+	if not list.is_empty():
+		var y := 120.0
+		for i in range(list.size()):
+			var chosen := i == _front._cursor
+			if chosen:
+				_canvas.draw_rect(_at(offset, scale, 96, y - 6, 448, 40),
+					Color(0.16, 0.34, 0.62, 0.85))
+			_line(offset, scale, "answer", str(list[i][0]), 110, y, 420, 34, 22,
+				Color(1, 1, 1) if chosen else Color(0.72, 0.76, 0.84), "Centre")
+			y += 48
+		_front_hint(offset, scale)
+		return
+
+	# The setup stages: one column per seat, the way the four panels work.
+	var width := PANEL.x / FrontEnd.SEATS
+	for seat in range(FrontEnd.SEATS):
+		var x := seat * width
+		_draw_front_seat(offset, scale, seat, x, width)
+	_front_hint(offset, scale)
+
+
+func _draw_front_seat(offset: Vector2, scale: float, seat: int,
+		x: float, width: float) -> void:
+	var lit := _front.joined(seat)
+	_canvas.draw_rect(_at(offset, scale, x + 6, 96, width - 12, 330),
+		Color(0.10, 0.13, 0.20, 0.9) if lit else Color(0.06, 0.07, 0.10, 0.9))
+
+	_line(offset, scale, "answer", _front.label_for(seat), x + 10, 104, width - 20, 26,
+		16, COLOURS[seat] if lit else Color(0.35, 0.38, 0.44), "Centre")
+
+	if not lit:
+		_line(offset, scale, "answer", "-", x + 10, 250, width - 20, 26, 16,
+			Color(0.3, 0.32, 0.38), "Centre")
+		return
+
+	if _front.screen == FrontEnd.Screen.JOIN:
+		_line(offset, scale, "answer", "OK", x + 10, 250, width - 20, 26, 18,
+			Color(0.6, 0.9, 0.6), "Centre")
+		return
+
+	# The wheel: the choice either side of the one under the cursor, which is
+	# what the carousel shows.
+	var choices: Array = _front.options_for(seat)
+	if choices.is_empty():
+		return
+	var at: int = _front.cursor_of(seat)
+	var y := 150.0
+	for step in range(-2, 3):
+		var idx: int = (at + step + choices.size()) % choices.size()
+		var here := step == 0
+		var tint := Color(1, 1, 1) if here else Color(0.55, 0.58, 0.66)
+		if _front.settled(seat) and here:
+			tint = Color(0.6, 0.95, 0.6)
+		_line(offset, scale, "answer", str(choices[idx]), x + 10, y, width - 20, 28,
+			18 if here else 14, tint, "Centre")
+		y += 34
+
+	if _front.screen == FrontEnd.Screen.NAME:
+		_line(offset, scale, "answer", _front._name[seat] + "_",
+			x + 10, 330, width - 20, 30, 20, Color(1, 0.93, 0.6), "Centre")
+
+
+## The four buttons, named the way the scripts name them.
+func _front_hint(offset: Vector2, scale: float) -> void:
+	_line(offset, scale, "answer",
+		"BLAUW/GEEL KIEZEN   ZOEMER BEVESTIGEN   GROEN TERUG",
+		40, 440, 560, 24, 13, Color(0.6, 0.64, 0.72), "Centre")
+
+
 func _draw_seating(offset: Vector2, scale: float) -> void:
 	_text(offset, scale, "RoundInstructionsLarge", "KIES EEN PLAATS",
 		L.title.position.x, L.title.position.y + 40, L.title.size.x, 54, 1.1,

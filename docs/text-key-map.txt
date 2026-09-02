@@ -120,3 +120,82 @@ RulesTriggerFingerCorrect
 RulesTriggerFingerCorrectPoints
 RulesTriggerFingerWrong
 RulesTriggerFingerWrongPoints
+
+# ---------------------------------------------------------------------------
+# [locked] Front end and character select.
+#
+# These are not positional guesses. The 24 buzzer names settle the block: the
+# script CharacterSelectShared lists BuzzerNameAwooga, AirHorn, Alarm, Belch,
+# CarHorn, Cat, Chicken, Chipmunk, DogBark, Duck, EvilLaugh, Frog, GirlLaugh,
+# Goose, Horn, Horse, Monkey, Sheep, Siren, Space, Stadium, Train, Turkey,
+# Whistle - and default.str carries exactly 24 consecutive strings at 216..239
+# that are those animals and noises in the same order, in Dutch. A 24 of 24
+# ordered agreement is not a coincidence, and it anchors everything near it.
+#
+# The four character-select stage titles are the same kind of evidence: the
+# script's stage enums run CHARTYPE, MODEL, BUZZER, NAMEENTRY, and 317..320 are
+# KIES EEN PERSONAGE / KIES KLEDING / KIES EEN ZOEMER / VOER JE NAAM IN, four
+# consecutive strings in that exact order.
+#
+# The rest are matched by meaning, as the verified block above was.
+# ---------------------------------------------------------------------------
+
+[locked]
+MenuMainMenuText            = 153
+MenuPlayMultiplayer         = 154
+MenuPlaySingleplayer        = 155
+MenuOptions                 = 156
+MenuMusicTypeText           = 159
+MenuGameLengthText          = 160
+MenuExtras                  = 324
+
+MusicTypeOptionAll          = 170
+MusicTypeOptionOlder        = 171
+MusicTypeOptionNewer        = 172
+
+MultiplayerGameLengthShort  = 189
+MultiplayerGameLengthMedium = 190
+MultiplayerGameLengthLong   = 191
+
+OptionConfirm               = 103
+OptionUndo                  = 305
+OptionReturnToMain          = 105
+OptionReturnToGameLength    = 327
+
+PlayerSetupTitleCharacter   = 317
+PlayerSetupTitleCostume     = 318
+PlayerSetupTitleBuzzer      = 319
+PlayerSetupTitleNameEntry   = 320
+BuzzToJoinPrompt            = 246
+NameEntryAlphabetBackspace  = 300
+NameEntryAlphabetDone       = 301
+
+PlayerAndNumber1            = 92
+PlayerAndNumber2            = 93
+PlayerAndNumber3            = 94
+PlayerAndNumber4            = 95
+
+BuzzerNameAwooga            = 216
+BuzzerNameAirHorn           = 217
+BuzzerNameAlarm             = 218
+BuzzerNameBelch             = 219
+BuzzerNameCarHorn           = 220
+BuzzerNameCat               = 221
+BuzzerNameChicken           = 222
+BuzzerNameChipmunk          = 223
+BuzzerNameDogBark           = 224
+BuzzerNameDuck              = 225
+BuzzerNameEvilLaugh         = 226
+BuzzerNameFrog              = 227
+BuzzerNameGirlLaugh         = 228
+BuzzerNameGoose             = 229
+BuzzerNameHorn              = 230
+BuzzerNameHorse             = 231
+BuzzerNameMonkey            = 232
+BuzzerNameSheep             = 233
+BuzzerNameSiren             = 234
+BuzzerNameSpace             = 235
+BuzzerNameStadium           = 236
+BuzzerNameTrain             = 237
+BuzzerNameTurkey            = 238
+BuzzerNameWhistle           = 239

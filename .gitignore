@@ -38,3 +38,4 @@ export_presets.cfg
 
 ## Run logs
 *.log
+__pycache__/

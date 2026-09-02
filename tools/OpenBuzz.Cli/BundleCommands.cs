@@ -194,7 +194,10 @@ public static class BundleCommands
             int correct = q.Options.ToList().IndexOf(q.CorrectAnswer);
             if (correct < 0) continue;
 
-            result.Add(new { id = q.Id, question = q.Question, options = q.Options, correct, clip = song.Clip });
+            // The year comes along because the front end's music choice needs it:
+            // GameTypeMenu's three options call SetRoundHistoricalBiasNone,
+            // Early and Late, which is a filter on when the song came out.
+            result.Add(new { id = q.Id, question = q.Question, options = q.Options, correct, clip = song.Clip, year = song.Year });
             if (result.Count >= limit) break;
         }
 

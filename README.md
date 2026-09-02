@@ -60,6 +60,8 @@ own video wall through the game's own camera.
 | Cameras | **Solved** - all 51 in `StudioCameras`, under the names the Lua passes to `SetCameraAngle`; convention checked against the contestant markers to a cosine of 0.997 |
 | Light rigs | **Solved** - eight moods, the same seven point lights in each, only the colours changing |
 | Screen layout | **Solved** - the 640x480 layout read out of `GenericData`, not measured: 246 globals and 19 round tables |
+| Front end | **Working** - the game's own flow: HOOFDMENU, SPELDUUR, MUZIEKGENRE, then buzz-to-join and the four setup stages (personage, kleding, zoemer, naam), all read out of MainMenu, MultiPlayerGameLengthMenu, GameTypeMenu and CharacterSelectMultiBeta. See [front-end.md](docs/front-end.md). |
+| Text strings | **81 of 659 keys** - the name-to-id hash in `default.ndx` is still unidentified, but the 24 buzzer names pin the front-end block: the script lists 24 sounds and the table holds those 24 in the same order. See [text-key-map.txt](docs/text-key-map.txt). |
 | Game flow | **Session working** - short/medium/long games chain rounds, carrying scores and banked time; front end and character select still to do |
 | 3D + 2D composited | **Working** - the round renders into its own viewport and that viewport is hung on the studio video wall, seen through `CAMERA_SCREEN` |
 | Host and hostess placement | **Settled, and not on the disc** - no marker anywhere, and the executable never attaches them to one. See [studio-format.md](docs/studio-format.md). |

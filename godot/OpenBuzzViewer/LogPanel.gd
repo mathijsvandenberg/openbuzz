@@ -13,7 +13,9 @@ var _clock := 0.0
 
 
 func _ready() -> void:
-	visible = false
+	# Docked along the bottom rather than floating over the game, so what the
+	# port is doing is readable while it does it. F2 still gets the space back.
+	visible = true
 	set_process(true)
 	_redraw()
 

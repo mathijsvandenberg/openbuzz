@@ -138,6 +138,18 @@ var _contestants: Array[Node3D] = []
 var _contestant_players: Array[AnimationPlayer] = []
 
 
+## Who is actually standing on the marks.
+##
+## The set does not shrink to the headcount - all four podiums stay - so an
+## empty place is an empty place: podium, nameplate and glow, with nobody
+## behind it. Hiding the figure is how that happens, rather than rebuilding the
+## studio, which load_set would happily do twice.
+func set_seat_occupied(seat: int, occupied: bool) -> void:
+	if seat < 0 or seat >= _contestants.size():
+		return
+	_contestants[seat].visible = occupied
+
+
 ## Stands a contestant on each mark.
 ##
 ## The marks are DUMMYNODE_CONTESTANT_1..4 and the model goes on one with no
