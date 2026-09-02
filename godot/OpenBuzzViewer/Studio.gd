@@ -403,10 +403,18 @@ func show_on_screen(texture: Texture2D) -> int:
 ## gets a _0, _1 suffix, so a name matches a group and not just a node.
 func _index(node: Node) -> void:
 	for child in node.get_children():
-		var stem := _stem(str(child.name))
-		if not _pieces.has(stem):
-			_pieces[stem] = []
-		_pieces[stem].append(child)
+		var full := str(child.name)
+		var stem := _stem(full)
+
+		# Indexed under both the exact name and the stem. A piece split across
+		# meshes arrives as NORM_DEFAULT_0, _1 and has to be findable as a
+		# group; but DUMMYNODE_CONTESTANT_1 is a name in its own right, and
+		# collapsing it to DUMMYNODE_CONTESTANT lost every contestant mark.
+		for key in ([full] if full == stem else [full, stem]):
+			if not _pieces.has(key):
+				_pieces[key] = []
+			_pieces[key].append(child)
+
 		_index(child)
 
 
@@ -440,6 +448,17 @@ func marker(name: String) -> Vector3:
 	if found.is_empty():
 		return Vector3.ZERO
 	return (found[0] as Node3D).global_position
+
+
+## A marker's whole transform, which carries a facing as well as a position.
+## The contestant marks are turned 45 degrees, because the stage runs
+## diagonally, and taking the rotation from the mark is how a contestant ends
+## up facing the right way without anyone choosing an angle.
+func marker_transform(name: String) -> Transform3D:
+	var found := parts(name)
+	if found.is_empty():
+		return Transform3D.IDENTITY
+	return (found[0] as Node3D).global_transform
 
 
 ## The staging: four podiums for a multiplayer game, one for a single player.

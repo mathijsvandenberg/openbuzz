@@ -64,7 +64,82 @@ func build(screen: Texture2D, players: int) -> bool:
 		push_warning("no video wall surface found; the round has nowhere to draw")
 
 	_add_hostess(dir)
+	_add_contestants(dir, players)
 	return true
+
+
+## The sixteen contestants, in the order their costume models sit on the disc.
+## Three costumes each, forty-eight models.
+const ROSTER := [
+	"Angie", "Ash", "Barley", "Bradley", "Cinnamon", "Gina", "Jean", "Keiko",
+	"Mercy", "Pelvis", "Punk", "Razor", "Stevie", "Tina", "Walrus", "Winona",
+]
+
+var _contestants: Array[Node3D] = []
+var _contestant_players: Array[AnimationPlayer] = []
+
+
+## Stands a contestant on each mark.
+##
+## The marks are DUMMYNODE_CONTESTANT_1..4 and the model goes on one with no
+## offset of its own, because that is what the engine does: 0x0013BCD0 attaches
+## a model to a node by name and nothing adjusts it afterwards. The costumes
+## have very different bind poses - Angie is 173 units with her origin at the
+## ankle, Walrus 142 with his at the hip - and compensating for that here would
+## be inventing a rule the game does not have.
+func _add_contestants(dir: String, players: int) -> void:
+	var picks := _picked_characters(players)
+
+	for seat in range(players):
+		var mark := "DUMMYNODE_CONTESTANT_%d" % (seat + 1)
+		if parts(mark).is_empty():
+			Log.warn("cast", "no %s in the set" % mark)
+			continue
+
+		var name := str(picks[seat])
+		var figure := _load(dir.path_join("%sCostume01.glb" % name))
+		if figure == null:
+			Log.warn("cast", "no model for %s" % name)
+			continue
+
+		add_child(figure)
+		# Position and facing both come from the mark. The marks are turned 45
+		# degrees because the stage runs diagonally, so taking the rotation from
+		# the mark is what makes a contestant face the right way; picking an
+		# angle by hand had them all in profile.
+		figure.global_transform = marker_transform(mark)
+
+		_contestants.append(figure)
+		if _player != null:
+			_contestant_players.append(_player)
+			_play_idle_on(_player)
+
+		Log.info("cast", "seat %d: %s at %s facing %s" % [
+			seat + 1, name, str(figure.global_position),
+			str(figure.global_transform.basis.get_euler() * 180.0 / PI)])
+
+
+## Who is in which seat. --characters names them; otherwise the first few of
+## the roster, so a run is repeatable.
+func _picked_characters(players: int) -> Array:
+	var args := OS.get_cmdline_user_args()
+	var at := args.find("--characters")
+	if at >= 0 and at + 1 < args.size():
+		var named := args[at + 1].split(",", false)
+		if named.size() >= players:
+			return named
+	return ROSTER.slice(0, players)
+
+
+func _play_idle_on(player: AnimationPlayer) -> void:
+	var clips := player.get_animation_list()
+	if clips.is_empty():
+		return
+	var pick := clips[randi() % clips.size()]
+	player.play(pick)
+	var anim := player.get_animation(pick)
+	if anim != null:
+		anim.loop_mode = Animation.LOOP_LINEAR
 
 
 static func _bundle_dir() -> String:
