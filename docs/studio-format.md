@@ -141,6 +141,38 @@ The countdown pie's position. `CountdownTimerIconX/Y` is (523, 17), the top
 right, and the reference plainly shows the pie at the top left, so that is a
 different element and the pie is still placed by eye.
 
-The hostess. There is no `DUMMYNODE` for her anywhere in the set, her model and
-all eleven of her animations are authored at the origin, and nothing in the
-scripts assigns her a position. She stands at `MODEL_SET_LECTERN` for now.
+The host and the hostess. This one is settled rather than open: their positions
+are not on the disc at all. Six checks, each independent:
+
+  * No `DUMMYNODE` for either in `StudioModels`, `StudioLights`,
+    `StudioParticles` or any `GreenRoom` file.
+  * The executable's own list of node names it looks up has
+    `DUMMYNODE_CONTESTANT_`, `DUMMYNODE_CLOCK_CENTRE`, `DUMMYNODE_PRIZEROOM`,
+    the four spot cones and the six light groups - and nothing for a presenter.
+    It does hold `ANIMATEDMODEL_HOST` and `ANIMATEDMODEL_HOSTESS`, so it loads
+    them by name and places them from code.
+  * Their clump root frames sit at the origin. So do the contestants', which is
+    the point: contestants get moved to a marker afterwards.
+  * All 53 host clips and all 11 hostess clips keep their root at the origin.
+  * Their geometry is not authored in place either - the mesh bounds centre on
+    their own origin, not on any part of the set.
+  * `ANIMATEDMODEL_GRHOST`, the green-room host, is a placed set piece, and even
+    that sits at (0, 0, 0). Characters are never placed by the set in this
+    engine.
+
+The nearest anchor the data offers is the light rig. It has three POOL and SPOT
+pairs for three locations - contestants, host platform, monitor - and CONTSPOT
+is demonstrably the contestants', so HOSTSPOT is the host's key light and
+MONISPOT the hostess's. Projected straight down onto `MODEL_WALKWAY_GLASS`,
+whose top face is at y = 53.2, that puts the host at (-3.5, 53.2, 161.7) and the
+hostess at (-538.1, 53.2, 143.4), which is what the port uses.
+
+It is worth being clear that this does not reproduce the reference. Under
+CAMERA_SCREEN the hostess comes out dead centre laterally - within one unit -
+but 25.4 degrees below the axis, where the frame's half-height is 19.3, so she
+falls just under the bottom edge. The reference has her at the right of frame
+and about half its height. So the anchor is the best the disc supports and it
+is still not where the game puts her.
+
+What is left is disassembling MIPS around the `ANIMATEDMODEL_HOSTESS` reference
+in the executable. That is a different kind of job from reading a format.

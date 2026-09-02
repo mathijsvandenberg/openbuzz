@@ -102,6 +102,24 @@ func load_lights(bundle_dir: String) -> bool:
 	return true
 
 
+## Where a named light sits, from whichever rig is loaded. The positions are
+## identical across all eight moods; only the colours change.
+func has_light(name: String) -> bool:
+	for mood in _rigs:
+		for entry in _rigs[mood]:
+			if str(entry.get("name", "")) == name:
+				return true
+	return false
+
+
+func light_position(name: String) -> Vector3:
+	for mood in _rigs:
+		for entry in _rigs[mood]:
+			if str(entry.get("name", "")) == name:
+				return _vec(entry["position"])
+	return Vector3.ZERO
+
+
 func moods() -> Array:
 	return _rigs.keys()
 

@@ -11,13 +11,30 @@ extends Studio
 
 const IDLE_SWITCH := 9.0
 
-## Where the hostess stands. There is no DUMMYNODE for her - the markers name
-## the four contestants, the clock, the prize room and the game win - but the
-## set does have MODEL_SET_LECTERN, which is the presenter's spot, and she is
-## put beside it. How far to the side is the one number here still set against
-## the reference rather than read out of the file.
-const LECTERN := "MODEL_SET_LECTERN"
-const HOSTESS_SIDE := 300.0     ## out to the right of the lectern
+## <summary>
+## Where the host and hostess stand.
+##
+## Neither has a mark, and that is settled rather than unknown. There is no
+## DUMMYNODE for either of them in StudioModels, StudioLights, StudioParticles
+## or any GreenRoom file; the executable's own list of node names it looks up
+## has DUMMYNODE_CONTESTANT_, the clock, the prize room, the spot cones and the
+## light groups, and nothing for a presenter; their clumps sit at the origin,
+## as the contestants' do; all 53 host clips and 11 hostess clips keep their
+## root at the origin; and their geometry is not authored in place. The engine
+## positions them from code, under no name that can be searched for.
+##
+## What the data does give is a light named for each of them. The rig has three
+## POOL and SPOT pairs for three locations - contestants, host platform,
+## monitor - and CONTSPOT is demonstrably the contestants'. So HOSTSPOT is the
+## host's key light and MONISPOT the hostess's, and both project down onto
+## MODEL_WALKWAY_GLASS, whose top face is the floor they stand on.
+##
+## That is an anchor, not a stored coordinate, and it is the strongest one the
+## disc offers.
+## </summary>
+const HOST_SPOT := "ANIMATEDLIGHT_HOSTSPOT"
+const HOSTESS_SPOT := "ANIMATEDLIGHT_MONISPOT"
+const WALKWAY := "MODEL_WALKWAY_GLASS"
 const HOSTESS_TURN := 200.0
 
 @onready var _camera: Camera3D = $Camera
@@ -91,12 +108,28 @@ func _add_hostess(dir: String) -> void:
 ## is worth saying, because guessing a scale was what made her look like a
 ## figurine in front of a wall before.
 func _stand_hostess() -> void:
-
-	var lectern := parts(LECTERN)
-	if lectern.is_empty():
+	if not has_light(HOSTESS_SPOT):
 		return
-	_figure.global_position = (lectern[0] as Node3D).global_position
+
+	# Straight down from her spot onto the walkway.
+	var at := light_position(HOSTESS_SPOT)
+	at.y = walkway_top()
+	_figure.global_position = at
 	_figure.rotation_degrees = Vector3(0, HOSTESS_TURN, 0)
+
+	if OS.get_cmdline_user_args().has("--stage-report"):
+		print("STAGE hostess at=", at, " walkway_top=", walkway_top(),
+			" figure=", _figure != null, " visible=", _figure.visible)
+
+
+## The top face of the studio walkway, which is the floor the presenters stand
+## on. Read off the piece rather than assumed to be zero: it sits at 53.
+func walkway_top() -> float:
+	for part in parts(WALKWAY):
+		var mesh := part as MeshInstance3D
+		if mesh != null:
+			return (mesh.global_transform * mesh.get_aabb()).end.y
+	return 0.0
 
 
 static func _meshes_of(node: Node) -> Array:
