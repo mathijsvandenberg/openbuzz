@@ -83,3 +83,33 @@ alone, which is wrong.
 
 `tools/OpenBuzz.Cli/Lua/` for now, so the CLI can drive it. It moves to a
 library when the engine embeds it, which is the point of building it.
+
+## Turning stubs into behaviour
+
+`LuaHost` holds the natives that have to *answer* rather than record. Most of
+the 688 are things the engine does - show a viewport, play a sample - and a
+recording stub is enough to walk a script. The ones that get asked a question
+stop the script dead if they return nil, so those move into `LuaHost` first,
+and the trace says which one is next: run, see where it stops, implement, run
+again.
+
+That loop took the multiplayer character select from four calls to the whole
+setup:
+
+    SetupQuadrantViewportForCharacterStage(1..3)
+    ForceCharacterCarouselJumpToIndex(seat, 1)
+    ShowCharacterCarousel(seat)
+    SetButtonAutoRepeatOn(seat, "BlueTriangleButton")
+    SetButtonAutoRepeatOn(seat, "YellowSquareButton")
+    SetCharacterSelectCameraAngle()
+    SetCurrentScene2d("SCENE2D_MAIN")
+    SetCurrentRoundID(2)
+    ShowCharacterSelectViewports()
+    GetPixelWidthOfFirstCharacterInString("A", "GeneralSmall", 1.2)
+    TurnOnLogicalDeviceLightSupport()
+
+Several things fall out of that which were guesses before. The carousel is
+scrolled with the blue triangle and yellow square buttons. `SetCurrentRoundID(2)`
+matches `CharacterSelectID = 2` in the layout table. The name entry measures
+each letter through `GetPixelWidthOfFirstCharacterInString`. And the buzzer
+lamps are turned on by the script, not by the engine.

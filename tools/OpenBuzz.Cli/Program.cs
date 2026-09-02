@@ -105,7 +105,8 @@ try
                 Opt(args, "--trace"),
                 int.Parse(Opt(args, "--limit") ?? "3"),
                 int.Parse(Opt(args, "--resumes") ?? "40"),
-                Opt(args, "--preload") ?? "GenericData");
+                Opt(args, "--preload") ?? "GenericData",
+                int.Parse(Opt(args, "--players") ?? "4"));
 
         case "dead":
             return DeadCommands.Run(

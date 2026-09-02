@@ -14,7 +14,7 @@ using OpenBuzz.Cli.Lua;
 /// </summary>
 internal static class RunCommands
 {
-    public static int Run(string scriptDir, string chunk, string? entry, string? tracePath, int limit, int resumes, string preload)
+    public static int Run(string scriptDir, string chunk, string? entry, string? tracePath, int limit, int resumes, string preload, int players)
     {
         var loaded = new Dictionary<string, LuaProto>(StringComparer.OrdinalIgnoreCase);
         foreach (var path in Directory.GetFiles(scriptDir, "*.clu", SearchOption.AllDirectories))
@@ -74,6 +74,12 @@ internal static class RunCommands
                 return [];
             });
         };
+
+        // The natives that answer rather than record. Without these a script
+        // that asks the engine a question gets nil and stops.
+        var host = new LuaHost { Players = players };
+        LoadText(host, scriptDir);
+        host.Install(vm);
 
         // A few natives have to be real rather than stubbed, because the data
         // scripts use their return values to build the tables everything else
@@ -149,6 +155,20 @@ internal static class RunCommands
             Console.WriteLine($"\nTrace written to {tracePath}");
         }
         return 0;
+    }
+
+    /// The bundled text table, if `obz bundle` has been run, so the trace shows
+    /// the strings the game would show rather than bare keys.
+    private static void LoadText(LuaHost host, string scriptDir)
+    {
+        var root = Path.GetDirectoryName(scriptDir.TrimEnd(Path.DirectorySeparatorChar));
+        var path = Path.Combine(root ?? ".", "godot2d", "text.json");
+        if (!File.Exists(path)) return;
+
+        using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(path));
+        foreach (var p in doc.RootElement.EnumerateObject())
+            if (p.Value.ValueKind == System.Text.Json.JsonValueKind.String)
+                host.Text[p.Name] = p.Value.GetString() ?? "";
     }
 
     private static string Format(object?[] args) =>
