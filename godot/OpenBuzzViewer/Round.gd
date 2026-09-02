@@ -348,6 +348,14 @@ func _open_front_end() -> void:
 	_front.finished.connect(_on_front_end_done)
 	_join_clock = BOT_FILL_AFTER
 	_enter_green_room()
+
+	# --front <join|character|costume|buzzer|name> opens straight on a screen,
+	# so a change to one can be looked at without walking the whole flow.
+	var args := OS.get_cmdline_user_args()
+	var at := args.find("--front")
+	if at >= 0 and at + 1 < args.size():
+		_front.jump_to(args[at + 1])
+
 	Log.info("front", "main menu")
 	_canvas.queue_redraw()
 
@@ -1388,59 +1396,124 @@ func _draw_front(offset: Vector2, scale: float) -> void:
 			y += step
 		return
 
-	# The setup stages: one column per seat, the way the four panels work.
-	var width := PANEL.x / FrontEnd.SEATS
+	_draw_charselect(offset, scale)
+
+
+## <summary>
+## The buzz-to-join and setup screens, placed the way CharacterSelectSupport
+## places them.
+##
+## Every number is that script's. PlaceAndRenderGenericGraphics puts
+## charselect_gradient at CONST_GradientTL and again at CONST_GradientBR turned
+## 180 degrees, and stacks sideframetop and sideframebottom at
+## CONST_MarginBannerX with CONST_MarginBannerTopY and BottomY. GetXForPanel
+## gives each seat its column, PlaceNameBarIcon puts a nameplate at
+## CONST_YPlacementOfNameBar, the portrait border sits at
+## CONST_PortraitElementY, and the name text is offset by
+## CONST_NameTextIncrement. CONST_PanelWidth is 640/5, so the four columns tile
+## the screen from the banner to the right edge.
+## </summary>
+func _draw_charselect(offset: Vector2, scale: float) -> void:
+	var b := _bundle
+
+	# The character select is not on the studio wash - it covers the screen, and
+	# the gradients are a glow on black. Without the ground under them the two
+	# 252-square gradients read as slabs rather than corners.
+	_canvas.draw_rect(_at(offset, scale, 0, 0, CANVAS.x, CANVAS.y), Color.BLACK)
+
+	var grad := 252.0
+	_sprite(offset, scale, "charselect_gradient",
+		b.cs_of("CONST_GradientTLX", 10), b.cs_of("CONST_GradientTLY", 15), grad, grad)
+	b.draw_sprite_flipped(_canvas, "charselect_gradient",
+		_at(offset, scale, b.cs_of("CONST_GradientBRX", 390),
+			b.cs_of("CONST_GradientBRY", 240), grad, grad), Color.WHITE)
+
+	var banner := b.cs_of("CONST_MarginBannerX", 15)
+	_sprite(offset, scale, "sideframetop",
+		banner, b.cs_of("CONST_MarginBannerTopY", 20), 120, 187)
+	_sprite(offset, scale, "sideframebottom",
+		banner, b.cs_of("CONST_MarginBannerBottomY", 340), 120, 139)
+
+	# GetStageTitle names a title for the character, costume, buzzer and name
+	# stages and none for buzz-to-start, so that screen carries none.
+	if _front.screen != FrontEnd.Screen.JOIN:
+		_line(offset, scale, "GeneralLarge", _front.title(),
+			b.cs_of("CONST_TitleTextX", 128), b.cs_of("CONST_TitleTextY", 20),
+			b.cs_of("CONST_TitleWidth", 512), 44, 1.0, Color.WHITE, "Centre")
+
+	var width := b.cs_of("CONST_PanelInc", 128)
 	for seat in range(FrontEnd.SEATS):
-		_draw_front_seat(offset, scale, seat, seat * width, width)
-	_front_hint(offset, scale)
+		_draw_panel(offset, scale, seat, b.panel_x(seat + 1), width)
 
 
-func _draw_front_seat(offset: Vector2, scale: float, seat: int,
-		x: float, width: float) -> void:
+func _draw_panel(offset: Vector2, scale: float, seat: int, x: float, width: float) -> void:
+	var b := _bundle
 	var lit := _front.joined(seat)
-	_canvas.draw_rect(_at(offset, scale, x + 6, 96, width - 12, 320),
-		Color(0.10, 0.13, 0.20, 0.9) if lit else Color(0.06, 0.07, 0.10, 0.9))
 
-	_line(offset, scale, MENU_FONT, _front.label_for(seat), x + 10, 104, width - 20, 26,
-		0.8, COLOURS[seat] if lit else Color(0.35, 0.38, 0.44), "Centre")
+	# The border is portrait_select once a seat is taken and the plain frame
+	# until then, which is how LockPortraitBorderIcon marks a claimed place.
+	_sprite(offset, scale, "portrait_select" if lit else "portraitframe",
+		x, b.cs_of("CONST_PortraitElementY", 178), 127, 125,
+		Color.WHITE if lit else Color(0.62, 0.65, 0.72))
+
+	var bar := b.cs_of("CONST_YPlacementOfNameBar", 420)
+	_sprite(offset, scale, "nameplate", x, bar, 127, 42)
+	_line(offset, scale, "GeneralLarge", _front.label_for(seat),
+		x, bar + b.cs_of("CONST_NameTextIncrement", 7), width, 28,
+		0.62, Color.WHITE, "Centre")
 
 	if not lit:
-		_line(offset, scale, MENU_FONT, "-", x + 10, 250, width - 20, 26, 0.8,
-			Color(0.3, 0.32, 0.38), "Centre")
+		# Whoever has not joined gets the prompt in their column, which is what
+		# RenderBuzzToJoin does.
+		_text(offset, scale, "GeneralLarge", _t("BuzzToJoinPrompt", "DRUK OP DE ZOEMER OM TE SPELEN"),
+			x, b.cs_of("CONST_WheelElementY", 221), width, 90, 0.42,
+			Color(0.85, 0.87, 0.92), "Centre")
 		return
 
 	if _front.screen == FrontEnd.Screen.JOIN:
-		_line(offset, scale, MENU_FONT, "OK", x + 10, 250, width - 20, 26, 1.0,
-			Color(0.6, 0.9, 0.6), "Centre")
 		return
 
-	# The wheel: the choices either side of the one under the cursor, which is
-	# what the carousel shows.
+	# The wheel: the choices either side of the one under the cursor, stepping
+	# by CONST_GapBetweenWheelElements from CONST_WheelStartVertical.
 	var choices: Array = _front.options_for(seat)
 	if choices.is_empty():
 		return
 	var at: int = _front.cursor_of(seat)
-	var y := 150.0
-	for step in range(-2, 3):
-		var idx: int = (at + step + choices.size()) % choices.size()
-		var here := step == 0
-		var tint := Color(1, 1, 1) if here else Color(0.55, 0.58, 0.66)
+	var top := b.cs_of("CONST_WheelStartVertical", 115)
+	var gap := b.cs_of("CONST_GapBetweenWheelElements", 36)
+
+	for step in range(0, 5):
+		var idx: int = (at + step - 2 + choices.size()) % choices.size()
+		var here := step == 2
+		var tint := Color.WHITE if here else Color(0.55, 0.58, 0.66)
 		if _front.settled(seat) and here:
-			tint = Color(0.6, 0.95, 0.6)
-		_line(offset, scale, MENU_FONT, str(choices[idx]), x + 8, y, width - 16, 28,
-			1.0 if here else 0.72, tint, "Centre")
-		y += 36
+			tint = Color(0.55, 0.95, 0.55)
+		_line(offset, scale, "GeneralLarge", str(choices[idx]),
+			x, top + gap * float(step), width, gap,
+			0.6 if here else 0.44, tint, "Centre")
 
 	if _front.screen == FrontEnd.Screen.NAME:
-		_line(offset, scale, MENU_FONT, _front._name[seat] + "_",
-			x + 8, 342, width - 16, 30, 1.0, Color(1, 0.93, 0.6), "Centre")
+		_line(offset, scale, "GeneralLarge", _front._name[seat] + "_",
+			x, b.cs_of("CONST_YPlacementOfBuzzer", 340), width, 30,
+			0.6, Color(1, 0.93, 0.6), "Centre")
 
 
-## The four buttons, named the way the scripts name them.
+func _t(key: String, fallback: String) -> String:
+	return str(_bundle.text.get(key, fallback))
+
+
+## Confirm and undo, at CONST_ConfirmText/Icon and CONST_UndoText/Icon, with the
+## GreenCrossButton icon the script names for undo.
 func _front_hint(offset: Vector2, scale: float) -> void:
-	_line(offset, scale, MENU_FONT,
-		"BLAUW / GEEL KIEZEN    ZOEMER BEVESTIGEN    GROEN TERUG",
-		20, 442, 600, 24, 0.62, Color(0.6, 0.64, 0.72), "Centre")
+	var b := _bundle
+	_sprite(offset, scale, "GreenCrossButton",
+		b.cs_of("CONST_UndoIconX", 58), b.cs_of("CONST_UndoIconY", 392), 32, 32)
+	_line(offset, scale, "GeneralLarge", _t("OptionUndo", "TERUG"),
+		b.cs_of("CONST_UndoTextX", 24), b.cs_of("CONST_UndoTextY", 427),
+		b.cs_of("CONST_UndoWidth", 100), 26, 0.44, Color.WHITE, "Centre")
+	_line(offset, scale, "GeneralLarge", _t("OptionConfirm", "BEVESTIG"),
+		b.cs_of("CONST_ConfirmTextX", 15), b.cs_of("CONST_ConfirmTextY", 270),
+		b.cs_of("CONST_ConfirmWidth", 120), 26, 0.44, Color.WHITE, "Centre")
 
 
 func _draw_seating(offset: Vector2, scale: float) -> void:

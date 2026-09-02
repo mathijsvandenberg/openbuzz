@@ -167,6 +167,25 @@ func any_joined() -> int:
 	return n
 
 
+## Opens on a named screen, with two seats taken, for looking at one stage.
+func jump_to(name: String) -> void:
+	var by_name := {
+		join = Screen.JOIN, character = Screen.CHARACTER,
+		costume = Screen.COSTUME, buzzer = Screen.BUZZER, name = Screen.NAME,
+	}
+	if not by_name.has(name):
+		return
+
+	_length = "short"
+	_music = "all"
+	_joined[0] = true
+	_joined[1] = true
+	screen = by_name[name]
+	for seat in range(SEATS):
+		_settled[seat] = not _joined[seat]
+	Log.info("front", "opened on %s" % name)
+
+
 # -------------------------------------------------------------------- input
 
 ## One button on one handset. Menus take input from any handset, the way the

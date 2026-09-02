@@ -16,6 +16,7 @@ var quiz := []
 
 ## The screen layout, out of GenericData.clu. `obz layout export` writes it.
 var layout := {}
+var charselect := {}
 
 var _atlases := {}
 var _sheets := {}
@@ -27,6 +28,12 @@ func load_from(start: String) -> bool:
 		return false
 
 	layout = _json(dir.path_join("layout.json"))
+
+	# The character select keeps its own positioning in CharacterSelectSupport,
+	# derived from the 640x480 screen rather than written down: CONST_PanelWidth
+	# is 640/5, CONST_TitleWidth is four panels, CONST_ControlIndent is half a
+	# panel less 28.
+	charselect = _json(dir.path_join("charselect.json"))
 	sprites = _json(dir.path_join("sprites.json"))
 	fonts = _json(dir.path_join("fonts.json"))
 	text = _json(dir.path_join("text.json"))
@@ -67,6 +74,18 @@ func _json(path: String) -> Dictionary:
 ## overrides, so a round asks for its own value and falls back to the default.
 ## `fallback` is only reached when the extraction could not resolve a field,
 ## which it reports as missing rather than guessing.
+## One of CharacterSelectSupport's CONST_ values.
+func cs_of(key: String, fallback: float) -> float:
+	var globals: Dictionary = charselect.get("globals", {})
+	return float(globals[key]) if globals.has(key) and globals[key] is float else fallback
+
+
+## Where panel n starts, as GetXForPanel computes it: the panel start less 5,
+## plus a panel per seat less 2, plus 7 - which lands on a whole panel each time.
+func panel_x(seat: int) -> float:
+	return (cs_of("CONST_PanelStart", 128.0) - 5.0) 		+ (cs_of("CONST_PanelInc", 128.0) * float(seat - 1) - 2.0) + 7.0
+
+
 func layout_of(key: String, fallback: float, round_id := "") -> float:
 	var rounds: Dictionary = layout.get("rounds", {})
 	if round_id != "" and rounds.has(round_id):
@@ -108,6 +127,15 @@ func draw_sprite(canvas: CanvasItem, sprite_name: String, dest: Rect2, tint: Col
 		return
 	canvas.draw_texture_rect_region(
 		tex, dest, Rect2(float(s["x"]), float(s["y"]), float(s["w"]), float(s["h"])), tint)
+
+
+## As draw_sprite, turned half a turn. PlaceAndRenderGenericGraphics places the
+## charselect gradient twice and calls SetIconRotationDegrees(180) on the second,
+## so the glow runs from the other corner.
+func draw_sprite_flipped(canvas: CanvasItem, sprite_name: String, dest: Rect2, tint: Color) -> void:
+	canvas.draw_set_transform(dest.position + dest.size * 0.5, PI, Vector2.ONE)
+	draw_sprite(canvas, sprite_name, Rect2(-dest.size * 0.5, dest.size), tint)
+	canvas.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 func font_or_default(style: String) -> String:

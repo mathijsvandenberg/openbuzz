@@ -152,9 +152,10 @@ try
             var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts");
             return sub switch
             {
-                "show" => LayoutCommands.Show(inDir, Opt(args, "--filter")),
+                "show" => LayoutCommands.Show(inDir, Opt(args, "--filter"), Opt(args, "--script")),
                 "export" => LayoutCommands.Export(inDir,
-                                Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "layout.json")),
+                                Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "layout.json"),
+                                Opt(args, "--script")),
                 _ => Fail($"unknown layout subcommand '{sub}'"),
             };
         }

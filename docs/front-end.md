@@ -151,6 +151,43 @@ plain pale rectangle, marked in the source as the one invented thing on the
 screen. Staging the green room is the next step, and every model it needs is
 already extracted.
 
+## The character select screen
+
+Its numbers are not in GenericData. `CharacterSelectSupport`'s
+`DeclareConstantPositioningVars` derives most of them from the 640x480 screen it
+is drawing on, so they had to be folded rather than read:
+
+| constant | how the script gets it | value |
+|---|---|---|
+| `CONST_LeftMargin`, `CONST_PanelWidth`, `CONST_PanelStart`, `CONST_PanelInc` | 640 / 5 | 128 |
+| `CONST_ControlIndent` | PanelInc / 2 - 28 | 36 |
+| `CONST_MarginBannerX` | 10 + 5 | 15 |
+| `CONST_MarginBannerTopY` | 10 + 10 | 20 |
+| `CONST_MarginBannerBottomY` | 480 - 140 | 340 |
+| `CONST_TitleTextX` | LeftMargin | 128 |
+| `CONST_TitleWidth` | PanelInc * 4 | 512 |
+| `CONST_PortraitElementY` | written | 178 |
+| `CONST_YPlacementOfNameBar` | written | 420 |
+| `CONST_NameTextIncrement` | written | 7 |
+| `CONST_WheelStartVertical`, `CONST_GapBetweenWheelElements` | written | 115, 36 |
+
+`GetXForPanel(n)` is `(PanelStart - 5) + (PanelInc * (n - 1) - 2) + 7`, which
+lands on 128, 256, 384 and 512 - four 128-wide panels tiling from the banner
+column to the right edge.
+
+`PlaceAndRenderGenericGraphics` is the background: `charselect_gradient` at
+`CONST_GradientTL`, the same sprite again at `CONST_GradientBR` turned 180
+degrees by `SetIconRotationDegrees`, and `sideframetop` and `sideframebottom`
+stacked at `CONST_MarginBannerX`. Per panel, `PlaceNameBarIcon` puts a
+`nameplate` at `CONST_YPlacementOfNameBar` and the portrait border is
+`portrait_select` once a place is claimed and `portraitframe` before.
+`GetStageTitle` names a title for the character, costume, buzzer and name
+stages and none for buzz-to-start, so that screen carries none.
+
+Two screens are easy to confuse. `ChoosePositions`, which MainMenu calls before
+the length menu, is the KIES EEN PLAATS screen. The buzz-to-start stage above is
+`CharacterSelectMultiBeta`'s, and its prompt is `BuzzToJoinPrompt`.
+
 ## The text
 
 Only 29 of the 659 strings were resolved before this, because the name-to-id

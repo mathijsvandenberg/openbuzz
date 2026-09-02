@@ -14,14 +14,16 @@ using OpenBuzz.Cli.Lua;
 /// </summary>
 internal static class LayoutCommands
 {
+    /// The round screen's numbers live here; the character select keeps its own
+    /// in CharacterSelectSupport, so the script is selectable.
     private const string Script = "GenericData.clu";
 
-    public static int Export(string inDir, string outPath)
+    public static int Export(string inDir, string outPath, string? script = null)
     {
-        var path = FindScript(inDir);
+        var path = FindScript(inDir, script);
         if (path is null)
         {
-            Console.Error.WriteLine($"{Script} not found under {inDir}");
+            Console.Error.WriteLine($"{script ?? Script} not found under {inDir}");
             return 1;
         }
 
@@ -50,10 +52,10 @@ internal static class LayoutCommands
         return 0;
     }
 
-    public static int Show(string inDir, string? filter)
+    public static int Show(string inDir, string? filter, string? script = null)
     {
-        var path = FindScript(inDir);
-        if (path is null) { Console.Error.WriteLine($"{Script} not found"); return 1; }
+        var path = FindScript(inDir, script);
+        if (path is null) { Console.Error.WriteLine($"{script ?? Script} not found"); return 1; }
 
         var data = LuaTableExtractor.Extract(LuaUndump.Load(File.ReadAllBytes(path), Path.GetFileName(path)));
 
@@ -86,10 +88,13 @@ internal static class LayoutCommands
         _ => v?.ToString() ?? "nil",
     };
 
-    private static string? FindScript(string inDir)
+    private static string? FindScript(string inDir, string? script = null)
     {
-        var direct = Path.Combine(inDir, Script);
+        var want = script ?? Script;
+        if (!want.EndsWith(".clu", StringComparison.OrdinalIgnoreCase)) want += ".clu";
+
+        var direct = Path.Combine(inDir, want);
         if (File.Exists(direct)) return direct;
-        return Directory.EnumerateFiles(inDir, Script, SearchOption.AllDirectories).FirstOrDefault();
+        return Directory.EnumerateFiles(inDir, want, SearchOption.AllDirectories).FirstOrDefault();
     }
 }

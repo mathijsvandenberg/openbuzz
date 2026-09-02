@@ -20,7 +20,12 @@ namespace OpenBuzz.Cli.Lua;
 public static class LuaTableExtractor
 {
     private sealed record Unknown;
-    private sealed record GlobalRef(string Name);
+    /// <summary>
+    /// A global the script named. Value is the number it already holds, when it
+    /// holds one, so a later line can be folded without losing the name - which
+    /// is what RoundParameters is keyed by.
+    /// </summary>
+    private sealed record GlobalRef(string Name, double? Value = null);
 
     /// A table reached as `_G[Owner][Key]`, which is how RoundParameters is
     /// written: the round's id global picks the sub-table.
@@ -58,8 +63,17 @@ public static class LuaTableExtractor
             switch (op)
             {
                 case Op.GetGlobal:
-                    Set(reg, a, new GlobalRef(ConstString(f, LuaOpcodes.Bx(ins))));
+                {
+                    // A global already given a number reads back as that number,
+                    // so a later line can be folded. CharacterSelectSupport
+                    // needs it: CONST_ControlIndent is CONST_PanelInc halved
+                    // less 28, and CONST_TitleWidth is CONST_PanelInc times
+                    // four - both written in terms of a global it just set.
+                    var name = ConstString(f, LuaOpcodes.Bx(ins));
+                    var known = result.Globals.TryGetValue(name, out var v) && v is double d ? d : (double?)null;
+                    Set(reg, a, new GlobalRef(name, known));
                     break;
+                }
 
                 case Op.SetGlobal:
                 {
@@ -85,6 +99,39 @@ public static class LuaTableExtractor
                 case Op.Move:
                     Set(reg, a, b < reg.Length ? reg[b] : new Unknown());
                     break;
+
+                // <summary>
+                // Constant arithmetic, folded.
+                //
+                // Not every layout number is written down. CharacterSelectSupport
+                // derives most of the character select from the screen it is
+                // drawing on: CONST_PanelWidth is 640/5, CONST_ControlIndent is
+                // that halved less 28, CONST_TitleWidth is four panels. Dropping
+                // those would leave the screen with holes exactly where its
+                // proportions are.
+                // </summary>
+                case Op.Add:
+                case Op.Sub:
+                case Op.Mul:
+                case Op.Div:
+                {
+                    var left = Numeric(RK(f, reg, b));
+                    var right = Numeric(RK(f, reg, c));
+                    if (left is double x && right is double y)
+                    {
+                        double? folded = op switch
+                        {
+                            Op.Add => x + y,
+                            Op.Sub => x - y,
+                            Op.Mul => x * y,
+                            Op.Div => y == 0 ? null : x / y,
+                            _ => null,
+                        };
+                        Set(reg, a, folded is null ? new Unknown() : folded);
+                    }
+                    else Set(reg, a, new Unknown());
+                    break;
+                }
 
                 case Op.GetTable:
                 {
@@ -141,6 +188,15 @@ public static class LuaTableExtractor
     /// Lua 5.0 uses - LuaOpcodes carries that finding. Hardcoding 256 here read
     /// every constant six slots off, which is how QuestionTextPositionX came
     /// back as 67 and an icon offset came back as the string "ExtraLarge".
+    /// The number behind a value, whether it was loaded as one or is a global
+    /// already known to hold one.
+    private static double? Numeric(object? v) => v switch
+    {
+        double d => d,
+        GlobalRef g => g.Value,
+        _ => null,
+    };
+
     private static object? RK(LuaProto f, object?[] reg, int x) =>
         LuaOpcodes.IsK(x) ? ConstValue(f, LuaOpcodes.Indexk(x))
                           : (x < reg.Length ? reg[x] : new Unknown());
