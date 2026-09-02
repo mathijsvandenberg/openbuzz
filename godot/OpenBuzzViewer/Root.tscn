@@ -37,6 +37,11 @@ layout_mode = 2
 visible = false
 layout_mode = 2
 
+[node name="Volledig spel" parent="." instance=ExtResource("3_round")]
+visible = false
+layout_mode = 2
+start_at_front = true
+
 [node name="Round" parent="." instance=ExtResource("3_round")]
 visible = false
 layout_mode = 2

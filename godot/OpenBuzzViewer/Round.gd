@@ -171,6 +171,10 @@ var _bot_clock := 0.0
 ## The pre-game menus and player setup. Null once they have handed over.
 var _front: FrontEnd = null
 
+## Whether this copy opens on the main menu or straight on a round. The full
+## game tab sets it; the round tab is for picking one round and testing it.
+@export var start_at_front := false
+
 ## How long the join screen stays open, matching the claim screen's own wait.
 var _join_clock := 0.0
 
@@ -183,6 +187,7 @@ const BOT_START_AFTER := 3.0
 @onready var _canvas: Control = %RoundCanvas
 @onready var _screen: SubViewport = %ScreenContent
 @onready var _stage: Studio = %Stage
+@onready var _view: SubViewport = %SubViewport
 @onready var _status: Label = %RoundStatus
 @onready var _audio: AudioStreamPlayer = %Audio
 @onready var _speech_out: AudioStreamPlayer = %Speech
@@ -327,12 +332,11 @@ func _ready() -> void:
 
 	_list.select(start)
 
-	# --front skips straight to a round, which is what testing wants. Otherwise
-	# the game starts where the game starts: the main menu.
-	if args.has("--round") or args.has("--game") or _demo:
-		_pick(start)
-	else:
+	# --round, --game and --demo name a round outright, so they win either way.
+	if start_at_front and not (args.has("--round") or args.has("--game") or _demo):
 		_open_front_end()
+	else:
+		_pick(start)
 
 
 ## The menus, before any round exists.
@@ -637,6 +641,15 @@ func _start_question() -> void:
 
 
 func _process(delta: float) -> void:
+	# Two copies of this scene exist - the full game and the round tester - and
+	# only one is on screen. The hidden one stops rendering its studio.
+	var showing := is_visible_in_tree()
+	if _view != null:
+		_view.render_target_update_mode = (SubViewport.UPDATE_ALWAYS if showing
+			else SubViewport.UPDATE_DISABLED)
+	if not showing:
+		return
+
 	_poll_buttons()
 
 	if _front != null and _front.screen != FrontEnd.Screen.READY:
@@ -1244,52 +1257,60 @@ func _draw_screen_surface(offset: Vector2, scale: float) -> void:
 ## colour, which is why a pad is never tied to a position.
 ## The menus and the player setup, drawn on the jumbotron - which is where the
 ## game puts them too, since every menu script sets SCENE2D_MAIN.
+##
+## InitialiseSimpleMenu takes ClipboardTitleFontName and ClipboardTextFontName,
+## and GenericData sets both to ClipboardSmall, with the title scaled 1.32 and
+## the text 1.0. Those are the numbers used here.
+const MENU_FONT := "ClipboardSmall"
+const MENU_TITLE_SCALE := 1.32
+const MENU_TEXT_SCALE := 1.0
+
 func _draw_front(offset: Vector2, scale: float) -> void:
-	_line(offset, scale, "title", _front.title(), 60, 26, 520, 44, 30,
-		Color(1, 0.93, 0.6), "Centre")
+	_line(offset, scale, MENU_FONT, _front.title(), 40, 30, 560, 44,
+		MENU_TITLE_SCALE, Color(1, 0.93, 0.6), "Centre")
 
 	var list: Array = _front.items()
 	if not list.is_empty():
-		var y := 120.0
+		var y := 130.0
 		for i in range(list.size()):
 			var chosen := i == _front._cursor
 			if chosen:
-				_canvas.draw_rect(_at(offset, scale, 96, y - 6, 448, 40),
+				_canvas.draw_rect(_at(offset, scale, 80, y - 8, 480, 42),
 					Color(0.16, 0.34, 0.62, 0.85))
-			_line(offset, scale, "answer", str(list[i][0]), 110, y, 420, 34, 22,
-				Color(1, 1, 1) if chosen else Color(0.72, 0.76, 0.84), "Centre")
-			y += 48
+			_line(offset, scale, MENU_FONT, str(list[i][0]), 92, y, 456, 34,
+				MENU_TEXT_SCALE, Color(1, 1, 1) if chosen else Color(0.72, 0.76, 0.84),
+				"Centre")
+			y += 54
 		_front_hint(offset, scale)
 		return
 
 	# The setup stages: one column per seat, the way the four panels work.
 	var width := PANEL.x / FrontEnd.SEATS
 	for seat in range(FrontEnd.SEATS):
-		var x := seat * width
-		_draw_front_seat(offset, scale, seat, x, width)
+		_draw_front_seat(offset, scale, seat, seat * width, width)
 	_front_hint(offset, scale)
 
 
 func _draw_front_seat(offset: Vector2, scale: float, seat: int,
 		x: float, width: float) -> void:
 	var lit := _front.joined(seat)
-	_canvas.draw_rect(_at(offset, scale, x + 6, 96, width - 12, 330),
+	_canvas.draw_rect(_at(offset, scale, x + 6, 96, width - 12, 320),
 		Color(0.10, 0.13, 0.20, 0.9) if lit else Color(0.06, 0.07, 0.10, 0.9))
 
-	_line(offset, scale, "answer", _front.label_for(seat), x + 10, 104, width - 20, 26,
-		16, COLOURS[seat] if lit else Color(0.35, 0.38, 0.44), "Centre")
+	_line(offset, scale, MENU_FONT, _front.label_for(seat), x + 10, 104, width - 20, 26,
+		0.8, COLOURS[seat] if lit else Color(0.35, 0.38, 0.44), "Centre")
 
 	if not lit:
-		_line(offset, scale, "answer", "-", x + 10, 250, width - 20, 26, 16,
+		_line(offset, scale, MENU_FONT, "-", x + 10, 250, width - 20, 26, 0.8,
 			Color(0.3, 0.32, 0.38), "Centre")
 		return
 
 	if _front.screen == FrontEnd.Screen.JOIN:
-		_line(offset, scale, "answer", "OK", x + 10, 250, width - 20, 26, 18,
+		_line(offset, scale, MENU_FONT, "OK", x + 10, 250, width - 20, 26, 1.0,
 			Color(0.6, 0.9, 0.6), "Centre")
 		return
 
-	# The wheel: the choice either side of the one under the cursor, which is
+	# The wheel: the choices either side of the one under the cursor, which is
 	# what the carousel shows.
 	var choices: Array = _front.options_for(seat)
 	if choices.is_empty():
@@ -1302,20 +1323,20 @@ func _draw_front_seat(offset: Vector2, scale: float, seat: int,
 		var tint := Color(1, 1, 1) if here else Color(0.55, 0.58, 0.66)
 		if _front.settled(seat) and here:
 			tint = Color(0.6, 0.95, 0.6)
-		_line(offset, scale, "answer", str(choices[idx]), x + 10, y, width - 20, 28,
-			18 if here else 14, tint, "Centre")
-		y += 34
+		_line(offset, scale, MENU_FONT, str(choices[idx]), x + 8, y, width - 16, 28,
+			1.0 if here else 0.72, tint, "Centre")
+		y += 36
 
 	if _front.screen == FrontEnd.Screen.NAME:
-		_line(offset, scale, "answer", _front._name[seat] + "_",
-			x + 10, 330, width - 20, 30, 20, Color(1, 0.93, 0.6), "Centre")
+		_line(offset, scale, MENU_FONT, _front._name[seat] + "_",
+			x + 8, 342, width - 16, 30, 1.0, Color(1, 0.93, 0.6), "Centre")
 
 
 ## The four buttons, named the way the scripts name them.
 func _front_hint(offset: Vector2, scale: float) -> void:
-	_line(offset, scale, "answer",
-		"BLAUW/GEEL KIEZEN   ZOEMER BEVESTIGEN   GROEN TERUG",
-		40, 440, 560, 24, 13, Color(0.6, 0.64, 0.72), "Centre")
+	_line(offset, scale, MENU_FONT,
+		"BLAUW / GEEL KIEZEN    ZOEMER BEVESTIGEN    GROEN TERUG",
+		20, 442, 600, 24, 0.62, Color(0.6, 0.64, 0.72), "Centre")
 
 
 func _draw_seating(offset: Vector2, scale: float) -> void:
