@@ -174,5 +174,40 @@ falls just under the bottom edge. The reference has her at the right of frame
 and about half its height. So the anchor is the best the disc supports and it
 is still not where the game puts her.
 
-What is left is disassembling MIPS around the `ANIMATEDMODEL_HOSTESS` reference
-in the executable. That is a different kind of job from reading a format.
+### What the disassembly says
+
+`tools/mips/scan.py` finds where the executable materialises a given address -
+MIPS has to build one with a `lui`/`addiu` pair - and disassembles around it.
+Pointed at the presenter strings, it settles the question at machine level.
+
+`ANIMATEDMODEL_HOST` and `ANIMATEDMODEL_HOSTESS` are referenced from three
+places each, and every one is name plumbing:
+
+  * `0x001705F8` and `0x00170620` pass the string to a printf-style marshaller
+    with the format `"s"`. These are `GetModelNameHost` and `GetModelNameHostess`
+    returning the name to Lua.
+  * `0x0016EF9C` / `0x0016EFD8` and `0x0016F03C` / `0x0016F078` pass it with an
+    extra flag of 1 or 0 to one of two sibling calls. These are
+    `ShowHostAndHostessModels` and `HideHostAndHostessModels`, and they set
+    visibility only.
+  * `0x001DD584` / `0x001DD68C` is asset registration, allocating 188-byte
+    records at load.
+
+Placement in this engine is a pair of calls: `0x0014D7D8` selects a model by
+name and `0x0013BCD0` attaches it to a `DUMMYNODE` by name. `0x0013BCD0` has
+eighteen call sites. One builds `DUMMYNODE_CONTESTANT_%d` from a format string
+and the contestant index; the rest are driven by a table at `0x0042AA10` of
+(model, node) pairs stepping 32 bytes - the six trap spotlights, the clock
+against `DUMMYNODE_CLOCK_CENTRE`, and the four spot cones.
+
+Neither presenter appears in that table, and neither is passed to `0x0013BCD0`
+from anywhere. They are never attached to a node at all.
+
+They are not left at the origin either: the origin is 71 degrees off the
+CAMERA_SCREEN axis, so a presenter standing there would not be in the shot.
+
+What that leaves is placement computed at runtime rather than stored. It would
+fit the reference, where the hostess stands at the right of frame in every
+screen view and is absent from the podium views: a presenter positioned
+relative to the current camera rather than to the set. That is a hypothesis
+this pass did not prove, and it is where the next one would start.
