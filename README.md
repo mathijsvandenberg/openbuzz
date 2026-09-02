@@ -13,9 +13,51 @@ stays local and is regenerated from your disc with `obz lua`. What *is* checked
 in are the derived summaries: the format notes and the API name/arity tables,
 which describe the interface rather than reproduce the implementation.
 
+## Why
+
+*Buzz!: The Music Quiz* is the first of thirteen Buzz! titles Relentless
+Software made for Sony between 2005 and 2010, and the series sold over ten
+million copies. The studio itself came out of a collapse: David Amor and Andrew
+Eades had been at Computer Artworks' Brighton office when it went into
+receivership in October 2003, talked Sony Computer Entertainment Europe into
+letting them finish an unreleased DJ simulation, and set Relentless up 36 hours
+after that meeting. The DJ game became Buzz!. The first one passed a million
+copies on its own, and the second stayed in the UK PlayStation 2 top twenty for
+a year.
+
+They spent the years after the series on other things - *Blue Toad Murder
+Files*, which they self-published in 2009 and which sold over half a million,
+then Kinect titles and mobile. Around twenty people were laid off in February
+2011 as the studio moved to digital-only publishing; David Amor left in 2012
+after *Kinect Nat Geo TV*; and in August 2016, thirteen years in, Relentless
+closed and made everyone redundant, with an unannounced PS4 and Xbox One title
+still in development.
+
+So the series is finished. There will not be a fourteenth Buzz!, and the
+PlayStation 2 is not getting younger.
+
+**Emulation is a real option and this project is not a substitute for it.**
+PCSX2 plays these games, and it does drive the buzzer lamps: the USBqemu Buzz
+mod added output-report support years ago, and native support landed in PCSX2
+nightlies around December 2022, with the wired handsets registering
+automatically. If you want to play *Buzz!: The Music Quiz* as it shipped,
+emulate it - that is the better path, and it is the one that preserves the
+original exactly.
+
+What emulation cannot do is change the game. It runs a fixed binary, so the
+question pool is the one pressed in 2005, the ten round types are the ten that
+exist, and nothing new can be added. A port can: new questions and music, new
+locales, round formats Relentless never built, a scoring model you can actually
+read and alter. That is the reason for this repository. Everything here is
+written to keep the original's own data and behaviour as the reference - the
+layout comes out of the game's scripts, the cameras out of its camera file, the
+set out of its own streams - so that anything added sits on top of the real
+thing rather than an approximation of it.
+
 ## Status
 
-Format work is done for the layers that matter most; nothing renders yet.
+Format work is done. A round plays on the real buzzers, drawn on the studio's
+own video wall through the game's own camera.
 
 | Area | State |
 |---|---|
@@ -35,9 +77,14 @@ Format work is done for the layers that matter most; nothing renders yet.
 | Godot build | `obz-viewer.exe` - three tabs: models with their clips, the 2D layer in the game fonts, and Point Builder playable on the real USB buzzers with lamps. See [godot/OpenBuzzViewer](godot/OpenBuzzViewer/README.md). |
 | Round types | **All 10 playable and selectable**, input models and rules read from the game scripts; point values approximated. See [round-types.md](docs/round-types.md). |
 | `.ipu` video | **Container solved** - `ipum` header plus a `.ipx` frame index; all 241 frames split and decode through FFmpeg. No `.pss` on this disc. See [video-format.md](docs/video-format.md). |
-| Studio set, lights, cameras | Not started - in the `.rp2` streams, chunks parse but nothing reads the records |
+| Studio set | **Solved** - 43 named pieces and 7 markers in `StudioModels`, 96 more of lighting geometry, each placed by its own root frame. See [studio-format.md](docs/studio-format.md). |
+| Studio world | **Solved** - `WORLD_STUDIO`, a BSP of five PS2-native sectors; 3341 triangles against the 3341 the header declares |
+| Cameras | **Solved** - all 51 in `StudioCameras`, under the names the Lua passes to `SetCameraAngle`; convention checked against the contestant markers to a cosine of 0.997 |
+| Light rigs | **Solved** - eight moods, the same seven point lights in each, only the colours changing |
+| Screen layout | **Solved** - the 640x480 layout read out of `GenericData`, not measured: 246 globals and 19 round tables |
 | Game flow | **Session working** - short/medium/long games chain rounds, carrying scores and banked time; front end and character select still to do |
-| 3D + 2D composited | Not started - both halves run, never in the same scene |
+| 3D + 2D composited | **Working** - the round renders into its own viewport and that viewport is hung on the studio video wall, seen through `CAMERA_SCREEN` |
+| Host and hostess placement | **Settled, and not on the disc** - no marker anywhere, and the executable never attaches them to one. See [studio-format.md](docs/studio-format.md). |
 
 ## What the disc turned out to be
 
@@ -138,10 +185,24 @@ Re-derives the RK constant/register split from the corpus.
 
 ## Next up
 
-- Parse `BM1/Text/NET/*.str` + `.ndx` - get the Dutch question bank readable.
-- Decode `.vgp`; check against vgmstream's PS2 ADPCM handling.
-- Prototype the Buzz controller HID layer (HidSharp) - independent of everything
-  else, and cheap.
-- Decompile rather than disassemble the Lua, to firm up route 2.
+Everything the old list here named is done - the question bank, `.vgp`, the
+controller layer, the Lua. What is left, in the order worth doing it:
 
+1. **Redraw the remaining six rounds** against the reference captures. Four are
+   done and the method is settled, so this is application rather than decoding.
+2. **Build the front end and character select.** The largest missing piece of
+   the game around the round, and nothing new has to be decoded for it:
+   `CharacterSelectCameras`, `CharacterSelectModels`, the `BZ_FE_*` atlases and
+   a `CharacterSelectID` row in the layout table are all already extracted.
+3. **Play the videos.** All 121 frames of the intro decode; nothing plays them.
+4. **Settle the last stand-in numbers.** Wie Is Het Snelst prints its point
+   tiers on its own intro screen, so it is worth checking whether the other
+   rounds print theirs. The countdown pie's position is still placed by eye.
+5. **Finish the screen-text keys.** 52 of 81 are unresolved and show as grey
+   placeholders rather than passing as content. The hash that maps key to
+   string is bespoke and sits in the executable; a parametric search failed to
+   find it, so the practical route is filling the worksheet in by hand.
 
+Two things are settled as *not* recoverable and are documented as such rather
+than guessed: where the host and hostess stand, and the exact point values for
+rounds that do not print them.
