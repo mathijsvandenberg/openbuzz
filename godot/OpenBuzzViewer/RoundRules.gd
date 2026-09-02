@@ -66,7 +66,7 @@ static func all() -> Array[Dictionary]:
 			input = Mode.BUZZ_THEN_ANSWER, score = Score.FLAT, seconds = 15.0,
 			blurb = "The question and answers arrive a letter at a time. Buzz as soon as you think you know, then pick.",
 			reveals = true,
-			approximates = "The reveal finishes about two fifths into the clock, set against the reference shot; the real rate is engine-side.",
+			approximates = "",
 		},
 		{
 			id = "snap", params = "SnapRoundID", rules = "Snap",

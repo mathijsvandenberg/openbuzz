@@ -137,9 +137,16 @@ extractor that assumed 256 read every constant six slots off and returned
 
 ## Still not read
 
-The countdown pie's position. `CountdownTimerIconX/Y` is (523, 17), the top
-right, and the reference plainly shows the pie at the top left, so that is a
-different element and the pie is still placed by eye.
+The pie at the top left of the reference shots. The layout has exactly one
+countdown timer - `CountdownTimerIcon` at (523, 17), `CountdownTimerWidth` and
+`Height` 64 - and that is what the port draws, top right, because that is what
+the data says. Nothing else in the 246 globals lands anywhere near the top left,
+and the A2D scenes have no countdown or clock object either.
+
+So the reference is showing an element this port has not found. That is left
+standing rather than papered over by moving the timer to match the picture: the
+timer goes where its own parameter puts it, and the missing element stays
+missing until its own parameter turns up.
 
 The host and the hostess. This one is settled rather than open: their positions
 are not on the disc at all. Six checks, each independent:

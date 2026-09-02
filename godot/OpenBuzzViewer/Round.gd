@@ -104,23 +104,24 @@ func _read_layout() -> void:
 
 		question_scale = _bundle.layout_of("QuestionFontScaling", 1.0, id),
 		answer_scale = _bundle.layout_of("AnswerFontScaling", 0.9, id),
+
+		clock = Rect2(
+			_bundle.layout_of("CountdownTimerIconX", 523, id),
+			_bundle.layout_of("CountdownTimerIconY", 17, id),
+			_bundle.layout_of("CountdownTimerWidth", 64, id),
+			_bundle.layout_of("CountdownTimerHeight", 64, id)),
+
+		# Seconds per character for the letter-at-a-time reveal. The game calls
+		# it a teletype rate, which is what Flitsronde does.
+		teletype = _bundle.layout_of("GeneralTextTeletypeRate", 0.04, id),
 	}
 
 
-## The countdown pie is the one thing on this screen still placed by eye. The
-## script has a CountdownTimerIcon at (523, 17), but that is the top right and
-## the reference plainly shows the pie at the top left, so it is a different
-## element and this position is measured off the shot, not read.
-const CLOCK_CENTRE := Vector2(48, 45)
-const CLOCK_RADIUS := 40.0
+## The countdown timer, read like everything else: CountdownTimerIcon gives its
+## corner and CountdownTimerWidth/Height its size. Nothing here is measured.
 
 const CHASE_STEP := 0.16
 const CUE_STEP := 1.0
-
-## Flitsronde spends this share of the clock arriving a letter at a time.
-## Set against the reference shot, which has about eleven letters up with most
-## of the clock still to run.
-const REVEAL_SHARE := 0.40
 
 enum Phase { INTRO, PLAYING, PICKING, REVEAL, DONE }
 
@@ -346,17 +347,13 @@ func _start_question() -> void:
 	_correct = _order.find(int(q["correct"]))
 
 	# Flitsronde types the question and all four answers out together, a letter
-	# at a time, as in the reference shots: every line is cut at the same
-	# character count, not one line after another. The rate is set off the
-	# longest of them so the last letter lands with about a third of the clock
-	# still to run.
+	# at a time, every line cut at the same character count. The rate is the
+	# game's own GeneralTextTeletypeRate, seconds per character, not a share of
+	# the clock - which is what it used to be, fitted to a screenshot.
 	_reveal = 0.0
 	_reveal_rate = 0.0
 	if bool(_round.get("reveals", false)):
-		var longest := str(q["question"]).length()
-		for option in q["options"]:
-			longest = maxi(longest, str(option).length())
-		_reveal_rate = float(longest) / maxf(float(_round.seconds) * REVEAL_SHARE, 0.001)
+		_reveal_rate = 1.0 / maxf(float(L.teletype), 0.001)
 
 	var path := _wav_dir.path_join("%s.wav" % str(q["clip"]))
 	if FileAccess.file_exists(path):
@@ -925,17 +922,16 @@ func _draw_clock(offset: Vector2, scale: float) -> void:
 	if _phase != Phase.PLAYING and _phase != Phase.PICKING:
 		return
 
-	_sprite(offset, scale, "countdown",
-		CLOCK_CENTRE.x - CLOCK_RADIUS, CLOCK_CENTRE.y - CLOCK_RADIUS,
-		CLOCK_RADIUS * 2.0, CLOCK_RADIUS * 2.0)
+	var box: Rect2 = L.clock
+	_sprite(offset, scale, "countdown", box.position.x, box.position.y, box.size.x, box.size.y)
 
 	var span := maxf(float(_round.seconds), 0.001)
 	var spent := clampf(1.0 - _clock / span, 0.0, 1.0)
 	if spent <= 0.0:
 		return
 
-	var centre := offset + CLOCK_CENTRE * scale
-	var radius := CLOCK_RADIUS * scale * 0.82
+	var centre := offset + (box.position + box.size * 0.5) * scale
+	var radius := minf(box.size.x, box.size.y) * 0.5 * scale * 0.82
 	var points := PackedVector2Array([centre])
 	var steps := maxi(int(spent * 64.0), 2)
 	for i in range(steps + 1):
