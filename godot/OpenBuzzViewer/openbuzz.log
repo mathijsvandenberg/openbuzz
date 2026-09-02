@@ -1,6 +1,0 @@
-[   0.000] INFO  log      started 2026-09-02T12:22:57
-[   0.001] INFO  log      writing to C:/Users/Mathijs/source/repos/OpenBuzz/godot/OpenBuzzViewer/openbuzz.log
-[   0.001] INFO  studio   set loaded: 30 pieces indexed, 51 cameras, 8 light rigs
-[   0.076] INFO  round    points_builder (PointsBuilderRoundID) input=0 score=0 15s  layout question=[P: (142.0, 6.0), S: (430.0, 80.0)] answer=[P: (142.0, 92.0), S: (390.0, 55.0)] block=[P: (132.0, 360.0), S: (80.0, 80.0)]
-[   0.076] INFO  boot     args ["--selftest"]
-[   0.090] INFO  camera   CAMERA_SCREEN pos=(-207.5312, 275.3255, 472.2411) fov=38.553 near=86.4 far=12956.9
