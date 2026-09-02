@@ -105,11 +105,7 @@ func _read_layout() -> void:
 		question_scale = _bundle.layout_of("QuestionFontScaling", 1.0, id),
 		answer_scale = _bundle.layout_of("AnswerFontScaling", 0.9, id),
 
-		clock = Rect2(
-			_bundle.layout_of("CountdownTimerIconX", 523, id),
-			_bundle.layout_of("CountdownTimerIconY", 17, id),
-			_bundle.layout_of("CountdownTimerWidth", 64, id),
-			_bundle.layout_of("CountdownTimerHeight", 64, id)),
+		clock = CLOCK_PLACEHOLDER,
 
 		# Seconds per character for the letter-at-a-time reveal. The game calls
 		# it a teletype rate, which is what Flitsronde does.
@@ -117,8 +113,31 @@ func _read_layout() -> void:
 	}
 
 
-## The countdown timer, read like everything else: CountdownTimerIcon gives its
-## corner and CountdownTimerWidth/Height its size. Nothing here is measured.
+## <summary>
+## The countdown pie, and the one element on this screen whose position is not
+## recovered.
+##
+## GenericData does hold CountdownTimerIconX/Y (523, 17) and Width/Height 64,
+## and that looks like the answer, but it is dead data: GenericData sets those
+## four globals and no script in the game ever reads them. Drawing at them would
+## look sourced while being no better than a guess.
+##
+## The timer the round actually uses is native. QuizSupportCode_CountdownTimer
+## drives it entirely through CounterDisplayShow, CounterDisplayHide,
+## CounterDisplaySetHighValue, CounterDisplaySetDisplayValue and
+## CounterDisplayStopTicking, and CounterDisplayShow takes no arguments at all -
+## its binding at 0x0017F4F0 lazily constructs a 308-byte widget and shows it.
+## The geometry is inside that widget, in code.
+##
+## It is not in the A2D data either. None of the 46 scenes uses the 93x92
+## countdown sprite, and the in-round question screen is not an A2D scene at
+## all - the round-start panels, bumpers and PIP overlays are.
+##
+## So the size below is the game's (the sprite is 93x92) and the corner is
+## where the reference shows it, held as an admitted placeholder until the
+## widget is traced. It is the only number on this screen in that state.
+## </summary>
+const CLOCK_PLACEHOLDER := Rect2(12, 10, 76, 76)
 
 const CHASE_STEP := 0.16
 const CUE_STEP := 1.0
