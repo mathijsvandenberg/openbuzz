@@ -431,6 +431,24 @@ func parts(name: String) -> Array:
 	return _pieces.get(name, [])
 
 
+## Hides every mesh whose piece name is not in `keep`. For inspecting one
+## piece of the set without the rest in the way.
+func show_only(keep: Array) -> int:
+	var shown := 0
+	for part in _all_meshes(self):
+		var mesh := part as MeshInstance3D
+		var stem := _stem(str(mesh.name))
+		var wanted := false
+		for k in keep:
+			if str(k) == str(mesh.name) or str(k) == stem:
+				wanted = true
+		mesh.visible = wanted
+		if wanted:
+			shown += 1
+			Log.info("studio", "  %s at %s" % [mesh.name, str(mesh.global_position)])
+	return shown
+
+
 func hide_piece(name: String) -> void:
 	set_piece_visible(name, false)
 
@@ -461,6 +479,49 @@ func marker_transform(name: String) -> Transform3D:
 	return (found[0] as Node3D).global_transform
 
 
+## <summary>
+## Puts a podium on every seat.
+##
+## The set holds one podium, not four. MODEL_PODIUM_MULTI is a single unit -
+## screen, post and buzzer - and its nine meshes all sit on one transform, at
+## the first seat. The executable confirms it: the setup at 0x00172718 hands
+## each piece to 0x0013EBB0 with a count, and MODEL_PODIUM_MULTI gets 1 where
+## MODEL_PODIUMGLOW_1 gets 4. That count is how many named instances to look
+## up, so there really is one podium model and four glows.
+##
+## The other three seats are therefore the other three glows, which the set
+## does place: 43.8 units apart in x and z, the same diagonal spacing as the
+## contestant marks, with the podium sitting exactly on glow 1. So the podium
+## is duplicated onto glows 2, 3 and 4 - positions read from the set, not
+## spacing invented here.
+## </summary>
+func _place_podiums(prefix: String, seats: int) -> int:
+	var podium := parts(prefix)
+	if podium.is_empty():
+		return 0
+
+	var origin := marker("MODEL_PODIUMGLOW_1")
+	var made := 0
+
+	for seat in range(2, seats + 1):
+		var glow := parts("MODEL_PODIUMGLOW_%d" % seat)
+		if glow.is_empty():
+			continue
+		var offset := (glow[0] as Node3D).global_position - origin
+
+		for part in podium:
+			var mesh := part as MeshInstance3D
+			if mesh == null or not mesh.visible:
+				continue
+			var copy := mesh.duplicate() as MeshInstance3D
+			copy.name = "%s_SEAT%d_%s" % [prefix, seat, mesh.name]
+			add_child(copy)
+			copy.global_transform = mesh.global_transform.translated(offset)
+			made += 1
+
+	return made
+
+
 ## The staging: four podiums for a multiplayer game, one for a single player.
 func stage_for(players: int) -> void:
 	var multi := players > 1
@@ -470,3 +531,8 @@ func stage_for(players: int) -> void:
 	set_piece_visible("MODEL_PODIUM_SINGLE", not multi)
 	for i in range(1, 5):
 		set_piece_visible("MODEL_PODIUMGLOW_%d" % i, multi or i == 1)
+
+	if multi:
+		var copies := _place_podiums("MODEL_PODIUM_MULTI", players)
+		Log.info("studio", "podiums: 1 in the set, %d meshes cloned onto seats 2..%d" % [
+			copies, players])

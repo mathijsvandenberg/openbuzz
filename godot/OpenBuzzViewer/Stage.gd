@@ -254,6 +254,14 @@ func _process(delta: float) -> void:
 		else:
 			Log.error("camera", "no camera named %s in cameras.json" % _angle)
 
+		# --only <piece,piece> hides everything else, for looking at one piece
+		# of the set on its own.
+		var only := args.find("--only")
+		if only >= 0 and only + 1 < args.size():
+			var keep := args[only + 1].split(",", false)
+			var shown := show_only(keep)
+			Log.info("studio", "--only %s: %d meshes visible" % [str(keep), shown])
+
 		# --lights <mood> lights the set from one of the game's eight rigs.
 		# Without it the set stays unshaded, showing its textures as painted.
 		var mood := args.find("--lights")

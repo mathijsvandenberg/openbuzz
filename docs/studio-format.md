@@ -66,6 +66,22 @@ it.
 
 `obz camera list` and `obz camera export` read all of this.
 
+## One podium, four seats
+
+`MODEL_PODIUM_MULTI` is a single podium - screen, post and buzzer - whose nine
+meshes all sit on one transform, at the first seat. The set does not hold four.
+
+The executable says the same. The staging code at `0x00172718` hands each piece
+to `0x0013EBB0` with a count, and `MODEL_PODIUM_MULTI` gets 1 where
+`MODEL_PODIUMGLOW_1` gets 4. That count is how many named instances to look up -
+`_1` through `_4` - so there is genuinely one podium model and four glows.
+
+The other three seats are the other three glows, and the set does place those:
+43.8 units apart in x and z, the same diagonal spacing as the contestant marks,
+with the podium sitting exactly on glow 1. So the port duplicates the podium
+onto glows 2, 3 and 4. The positions are read; only the duplication is ours,
+and the engine has to do the same thing.
+
 ## The lights
 
 `Lights*.rp2` are the studio's lighting, one file per mood: neutral, intro, red
