@@ -97,6 +97,19 @@ try
                        Opt(args, "--locale") ?? "NET",
                        int.Parse(Opt(args, "--limit") ?? "400"));
 
+        case "light":
+        {
+            var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "list";
+            var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "RWStream");
+            return sub switch
+            {
+                "list" => LightCommands.List(inDir),
+                "export" => LightCommands.Export(inDir,
+                                Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "lights.json")),
+                _ => Fail($"unknown light subcommand '{sub}'"),
+            };
+        }
+
         case "layout":
         {
             var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "show";

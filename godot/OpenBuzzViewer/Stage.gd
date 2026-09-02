@@ -38,6 +38,7 @@ func build(screen: Texture2D, players: int) -> bool:
 		return false
 
 	load_cameras(_bundle_dir())
+	load_lights(_bundle_dir())
 
 	stage_for(players)
 	if screen != null and show_on_screen(screen) == 0:
@@ -139,6 +140,18 @@ func _process(delta: float) -> void:
 			_angle = args[at + 1]
 		if not use_camera(_angle, _camera):
 			push_warning("no camera named %s in cameras.json" % _angle)
+
+		# --lights <mood> lights the set from one of the game's eight rigs.
+		# Without it the set stays unshaded, showing its textures as painted.
+		var mood := args.find("--lights")
+		if mood >= 0 and mood + 1 < args.size():
+			var scale := Studio.LIGHT_SCALE
+			var scale_at := args.find("--light-scale")
+			if scale_at >= 0 and scale_at + 1 < args.size():
+				scale = float(args[scale_at + 1])
+			if use_mood(args[mood + 1], scale) == 0:
+				push_warning("no light rig named %s" % args[mood + 1])
+
 		_framed = true
 
 	if _player == null or _clips.is_empty():

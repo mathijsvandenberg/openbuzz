@@ -66,6 +66,51 @@ it.
 
 `obz camera list` and `obz camera export` read all of this.
 
+## The lights
+
+`Lights*.rp2` are the studio's lighting, one file per mood: neutral, intro, red
+tension, round win, game win, two celebrations and a white-out. Each holds the
+same seven point lights under the same names, and only the colours change
+between them:
+
+    ANIMATEDLIGHT_CONTSPOT   LIGHT_CONTESTANTPOOL
+    ANIMATEDLIGHT_HOSTSPOT   LIGHT_HOSTPLATFORMPOOL
+    ANIMATEDLIGHT_MONISPOT   LIGHT_MONITORPOOL
+    LIGHT_DOME
+
+The file is shaped exactly like `StudioCameras.rp2`, so it reads the same way.
+The `LIGHT` struct is 24 bytes: radius, colour as three floats, minus the
+cosine of the half-angle, then type and flags packed into one word. Every light
+in every rig is type `0x80`, a point light, so the cone angle is unused.
+
+The positions confirm the names against the set: `CONTSPOT` sits over the
+contestant marks, `HOSTSPOT` over `MODEL_SET_LECTERN`, and `MONISPOT` out at
+x = -538, on the negative-X side where `CAMERA_SCREEN` is pointed. That is the
+monitor the round is played on, and it is a different screen from the jumbotron.
+
+Colours run above 1 - a spot sits at 2.0, and the white-out pools at 5.0 - so
+they are multipliers, not 0..1 colours.
+
+`obz light list` and `obz light export` read them.
+
+### What the rig is, and is not
+
+The rig is not the illumination. Its lights reach 350 to 700 units into a set
+that spans nearly 6000, so lighting the studio from the rig alone leaves
+everything outside those pools black, and raising its scale does almost nothing
+- the set's textures already carry their lighting, the way a PS2 set does. The
+rig is a coloured wash over the top.
+
+So the port lights it as flat white ambient at 0.85, which for this albedo is
+close to the set as painted, with the rig adding its pools on top. That mapping
+is the one approximation here; the rig's own numbers are read exactly.
+
+Two Godot-specific traps cost time and are worth writing down. The scene shipped
+`ambient_light_source = 1`, which is DISABLED and not COLOR, so every change to
+the ambient energy did nothing at all. And the placeholder directional lights
+have to be switched off when a rig goes in, or they drown it - which looks
+exactly like the rig being too bright.
+
 ## The screen layout
 
 `GenericData.clu` keeps the 640x480 layout as plain constant assignment, with a

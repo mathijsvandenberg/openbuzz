@@ -35,6 +35,12 @@ var _pieces := {}
 var _root: Node3D = null
 var _render := {}
 var _cameras := {}
+var _rigs := {}
+var _rig_root: Node3D = null
+
+## Whether the set is being lit. Off, every surface is unshaded and shows the
+## texture as painted, which is how a PS2 set is meant to look on its own.
+var _lit := false
 
 
 ## The game renders 4:3, and the cameras say so themselves: every one of them
@@ -82,6 +88,158 @@ func use_camera(name: String, camera: Camera3D) -> bool:
 
 static func _vec(a) -> Vector3:
 	return Vector3(float(a[0]), float(a[1]), float(a[2]))
+
+
+## The eight light rigs, one per studio mood, out of `Lights*.rp2`.
+func load_lights(bundle_dir: String) -> bool:
+	var path := bundle_dir.path_join("lights.json")
+	if not FileAccess.file_exists(path):
+		return false
+	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if not (parsed is Dictionary):
+		return false
+	_rigs = parsed
+	return true
+
+
+func moods() -> Array:
+	return _rigs.keys()
+
+
+## <summary>
+## Puts one mood's lights in the studio.
+##
+## All seven are point lights, so each becomes an OmniLight3D at the position
+## and radius the file gives. The colours run above 1 - a spot sits at 2.0 and
+## the white-out pools at 5.0 - so the brightest channel becomes the energy and
+## the colour is normalised against it, which is the closest a renderer that
+## separates the two can come to a straight multiplier.
+##
+## Lighting the set also means shading it, and that is a real change: unlit,
+## every surface shows the texture exactly as the artist painted it, which is
+## how the set is built. So this is opt-in rather than the default.
+## </summary>
+## <summary>
+## How much of a RenderWare light to give a Godot one.
+##
+## This is the one number in the rig that is not read, and it cannot be: the
+## file gives a linear multiplier for a fixed-function renderer that adds it to
+## an already-painted texture, and Godot wants an energy for a physical light
+## that illuminates an albedo. Handed over one for one, seven lights at 2.0 and
+## a white-out at 5.0 blow the whole set out.
+##
+## The set is the reason it is small. Its textures already carry their lighting,
+## so the rig is a coloured wash over them, not the illumination itself.
+## </summary>
+const LIGHT_SCALE := 1.0
+
+## Flat white ambient standing in for "the texture as painted". Slightly under
+## 1 because the rig then adds on top, and the two together should land where
+## the unlit set already sits rather than above it.
+const AMBIENT_BASE := 0.85
+
+
+func use_mood(mood: String, scale := LIGHT_SCALE) -> int:
+	if not _rigs.has(mood):
+		return 0
+
+	if _rig_root != null:
+		_rig_root.queue_free()
+	_rig_root = Node3D.new()
+	_rig_root.name = "LightRig"
+	add_child(_rig_root)
+
+	var made := 0
+	for entry in _rigs[mood]:
+		var light := OmniLight3D.new()
+		light.name = str(entry.get("name", "light"))
+		light.position = _vec(entry["position"])
+		light.omni_range = float(entry["radius"])
+
+		var energy := maxf(float(entry.get("energy", 1.0)), 0.001)
+		var c = entry["colour"]
+		light.light_color = Color(float(c[0]) / energy, float(c[1]) / energy, float(c[2]) / energy)
+		light.light_energy = energy * scale
+		# A PS2 set of this vintage casts no shadow maps, and switching them on
+		# here only makes the audience self-shadow into mud.
+		light.shadow_enabled = false
+
+		_rig_root.add_child(light)
+		made += 1
+
+	# Ambient goes to flat white at full strength, which for an unshaded-looking
+	# albedo is the same picture as no lighting at all - the set as painted -
+	# and the rig then adds its pools on top.
+	#
+	# The rig is not the illumination and cannot be. Its lights reach 350 to 700
+	# units into a set that spans nearly 6000, so switching the ambient off left
+	# everything outside those pools black, and raising the rig's own scale to
+	# 2.5 barely touched it. The two placeholder directionals do go: they were
+	# stand-ins for exactly this rig.
+	_set_ambient(AMBIENT_BASE, Color(1, 1, 1))
+	for node in _all_of_class(get_tree().current_scene, "DirectionalLight3D"):
+		(node as DirectionalLight3D).visible = false
+	var switched := _set_lit(true)
+	if OS.get_cmdline_user_args().has("--lights-report"):
+		print("LIGHTS mood=", mood, " lights=", made, " scale=", scale,
+			" surfaces switched=", switched, " rigs=", _rigs.keys())
+	return made
+
+
+func _set_ambient(energy: float, colour := Color(1, 1, 1)) -> void:
+	for node in _all_of_class(get_tree().current_scene, "WorldEnvironment"):
+		var env := (node as WorldEnvironment).environment
+		if env != null:
+			# The scene ships this as DISABLED, which is why every change to the
+			# ambient energy did nothing at all until it was switched to COLOR.
+			env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+			env.ambient_light_energy = energy
+			env.ambient_light_color = colour
+
+
+static func _all_of_class(node: Node, cls: String) -> Array:
+	var out := []
+	if node == null:
+		return out
+	if node.get_class() == cls:
+		out.append(node)
+	for child in node.get_children():
+		out.append_array(_all_of_class(child, cls))
+	return out
+
+
+## Switches every non-additive surface between showing its texture as painted
+## and taking the rig's light. The additive pieces - flares, glows - stay
+## unshaded either way, because they are light rather than lit.
+func _set_lit(on: bool) -> int:
+	_lit = on
+	var switched := 0
+	var mode := BaseMaterial3D.SHADING_MODE_PER_PIXEL if on else BaseMaterial3D.SHADING_MODE_UNSHADED
+
+	for part in _all_meshes(self):
+		var mesh := part as MeshInstance3D
+		if mesh.mesh == null:
+			continue
+
+		# The additive pieces are light, not lit, so they stay unshaded either
+		# way; and the video wall is a screen, which emits its own picture.
+		var state := str(_render.get(str(mesh.name), "NORM_DEFAULT"))
+		if state.contains("ADDITIVE"):
+			continue
+
+		for i in range(mesh.mesh.get_surface_count()):
+			var material := mesh.get_surface_override_material(i) as StandardMaterial3D
+			if material == null or material.resource_name == VIDEOWALL_MATERIAL:
+				continue
+			material.shading_mode = mode
+			# A painted set has no specular of its own; leaving Godot's default
+			# on put a sheen over the backdrop that read as blown-out.
+			material.metallic = 0.0
+			material.roughness = 1.0
+			material.specular = 0.0
+			switched += 1
+
+	return switched
 
 
 func load_set(models_dir: String) -> bool:
