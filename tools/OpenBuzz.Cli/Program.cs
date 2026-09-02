@@ -97,6 +97,16 @@ try
                        Opt(args, "--locale") ?? "NET",
                        int.Parse(Opt(args, "--limit") ?? "400"));
 
+        case "run":
+            return RunCommands.Run(
+                Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"),
+                Opt(args, "--chunk") ?? "PointsBuilderRound",
+                Opt(args, "--call") ?? "startScript",
+                Opt(args, "--trace"),
+                int.Parse(Opt(args, "--limit") ?? "3"),
+                int.Parse(Opt(args, "--resumes") ?? "40"),
+                Opt(args, "--preload") ?? "GenericData");
+
         case "dead":
             return DeadCommands.Run(
                 Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"),
