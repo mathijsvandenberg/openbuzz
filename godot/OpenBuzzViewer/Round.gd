@@ -1255,33 +1255,85 @@ func _draw_screen_surface(offset: Vector2, scale: float) -> void:
 
 ## The choose-a-place screen. A handset claims a seat by pressing that seat's
 ## colour, which is why a pad is never tied to a position.
-## The menus and the player setup, drawn on the jumbotron - which is where the
-## game puts them too, since every menu script sets SCENE2D_MAIN.
+## The clipboard menu, drawn the way SimpleMenu draws it.
 ##
-## InitialiseSimpleMenu takes ClipboardTitleFontName and ClipboardTextFontName,
-## and GenericData sets both to ClipboardSmall, with the title scaled 1.32 and
-## the text 1.0. Those are the numbers used here.
+## PlaceLogoAndLines puts clipboard_logo at (280, 10) and stretches the lines
+## sprite over (100, 170, 445, 505) - those four are upvalues of the DoSimpleMenu
+## closure, loaded as constants in SimpleMenu's own main. The title goes at
+## MenuTitleTextX/Y in a MenuTitleWidth by MenuTitleHeight box, and the items
+## start at OneButtonPerOptionSimpleMenuStartX/StartY and step by its YInc, with
+## the button icon offset by CONST_ClipboardIconOffsetX/Y. All out of
+## GenericData.
+##
+## The fonts are ClipboardSmall at 1.32 for the title and 1.0 for the items,
+## which is what ClipboardTitleFontScaling and ClipboardTextFontScaling say.
 const MENU_FONT := "ClipboardSmall"
-const MENU_TITLE_SCALE := 1.32
-const MENU_TEXT_SCALE := 1.0
+const LOGO_AT := Vector2(280, 10)
+const LOGO_SIZE := Vector2(115, 120)
+const LINES_AT := Rect2(100, 170, 445, 505)
+
+## Item n is picked by pressing button n, not by scrolling:
+## GetIconNameForNthButton maps 1..4 to Blue, Orange, Green and Yellow.
+const MENU_ICONS := ["BlueTriangleButton", "OrangeCircleButton",
+	"GreenCrossButton", "YellowSquareButton"]
+
+## What the title moves down by when the logo is drawn, and the colour the
+## script writes menus in: both upvalues of the SimpleMenu closures.
+const TITLE_SHIFT_WITH_LOGO := 77
+const TITLE_LINE := 36.0
+const MENU_INK := Color(0.06, 0.06, 0.07)
 
 func _draw_front(offset: Vector2, scale: float) -> void:
-	_line(offset, scale, MENU_FONT, _front.title(), 40, 30, 560, 44,
-		MENU_TITLE_SCALE, Color(1, 0.93, 0.6), "Centre")
-
 	var list: Array = _front.items()
+
 	if not list.is_empty():
-		var y := 130.0
+		# <summary>
+		# The sheet the clipboard menu is written on, and the one thing here
+		# that is not the game's.
+		#
+		# In the game the menus happen in the green room and the clipboard is a
+		# prop: GreenRoomModels.glb carries BZ_texture_clipboard along with the
+		# floor manager holding it and the two goons on the lift doors, and
+		# MainMenu ends with DoEndOfGreenRoomAndUnload. Until that scene is
+		# staged there is nothing pale to write on, and the text colour the
+		# script asks for is Black, so a plain sheet stands in. It is marked
+		# rather than tuned - the real answer is the prop, not a nicer rectangle.
+		# </summary>
+		_canvas.draw_rect(_at(offset, scale, 70, 0, 500, 480),
+			Color(0.90, 0.91, 0.89))
+
+		_sprite(offset, scale, "lines",
+			LINES_AT.position.x, LINES_AT.position.y, LINES_AT.size.x, LINES_AT.size.y)
+		_sprite(offset, scale, "clipboard_logo",
+			LOGO_AT.x, LOGO_AT.y, LOGO_SIZE.x, LOGO_SIZE.y)
+
+		# With the logo showing, AddMenuTitleText adds 77 to MenuTitleTextY -
+		# an upvalue of the closure, loaded as a constant in SimpleMenu's main -
+		# which is what keeps the title clear of the logo.
+		_line(offset, scale, MENU_FONT, _front.title(),
+			_bundle.layout_of("MenuTitleTextX", 114, ""),
+			_bundle.layout_of("MenuTitleTextY", 43, "") + TITLE_SHIFT_WITH_LOGO,
+			_bundle.layout_of("MenuTitleWidth", 400, ""),
+			# Top of the box, not the middle of it: main/2 sets the vertical
+			# justification, and centring in the full MenuTitleHeight would put
+			# the title on top of the first item at StartY 173.
+			TITLE_LINE,
+			_bundle.layout_of("ClipboardTitleFontScaling", 1.32, ""),
+			MENU_INK, "Centre")
+
+		var x := _bundle.layout_of("OneButtonPerOptionSimpleMenuStartX", 105, "")
+		var y := _bundle.layout_of("OneButtonPerOptionSimpleMenuStartY", 173, "")
+		var step := _bundle.layout_of("OneButtonPerOptionSimpleMenuYInc", 40, "")
+		var dx := _bundle.layout_of("CONST_ClipboardIconOffsetX", -44, "")
+		var dy := _bundle.layout_of("CONST_ClipboardIconOffsetY", 3, "")
+		var size := _bundle.layout_of("ClipboardTextFontScaling", 1.0, "")
+
 		for i in range(list.size()):
-			var chosen := i == _front._cursor
-			if chosen:
-				_canvas.draw_rect(_at(offset, scale, 80, y - 8, 480, 42),
-					Color(0.16, 0.34, 0.62, 0.85))
-			_line(offset, scale, MENU_FONT, str(list[i][0]), 92, y, 456, 34,
-				MENU_TEXT_SCALE, Color(1, 1, 1) if chosen else Color(0.72, 0.76, 0.84),
-				"Centre")
-			y += 54
-		_front_hint(offset, scale)
+			if i < MENU_ICONS.size():
+				_sprite(offset, scale, MENU_ICONS[i], x + dx, y + dy, 32, 32)
+			_line(offset, scale, MENU_FONT, str(list[i][0]), x, y, 420, 34,
+				size, MENU_INK, "Left")
+			y += step
 		return
 
 	# The setup stages: one column per seat, the way the four panels work.

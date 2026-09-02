@@ -69,6 +69,47 @@ year buckets it leans on *are* the game's, from the decade classifier at
 '00. The split itself is this port's choice, and it is the only invented number
 in the front end.
 
+## The clipboard
+
+The menus are not a list with a cursor. `DoSimpleMenu` has a one-button-per-
+option mode: each item carries a `ButtonIndex`, `GetIconNameForNthButton` draws
+its icon beside it, and `WhichButtonWasPressed` is matched back through
+`GetButtonIndexForIconName`. That function is a plain ladder:
+
+| index | button |
+|---|---|
+| 0 | BuzzButton |
+| 1 | BlueTriangleButton |
+| 2 | OrangeCircleButton |
+| 3 | GreenCrossButton |
+| 4 | YellowSquareButton |
+
+So item one is the blue button and there is no cursor at all. The handset
+reports those colours as slots 4, 3, 2 and 1.
+
+The layout comes from `GenericData` and from the upvalues of SimpleMenu's own
+closures, which are loaded as constants in its `main`:
+
+| what | where | value |
+|---|---|---|
+| `clipboard_logo` | DoSimpleMenu upvalues 0, 1 | (280, 10) |
+| `lines`, resized | upvalues 2..5 | (100, 170, 445, 505) |
+| title box | `MenuTitleTextX/Y`, `MenuTitleWidth` | (114, 43, 400) |
+| title shift when the logo shows | AddMenuTitleText upvalue 0 | +77 |
+| title colour | AddMenuTitleText upvalue 1 | Black |
+| items | `OneButtonPerOptionSimpleMenuStartX/StartY/YInc` | (105, 173, 40) |
+| button icon offset | `CONST_ClipboardIconOffsetX/Y` | (-44, 3) |
+| fonts | `ClipboardTitleFontName/Scaling`, `ClipboardTextFontName/Scaling` | ClipboardSmall, 1.32 and 1.0 |
+
+**The sheet itself is still missing.** In the game the menus happen in the green
+room and the clipboard is a prop: `GreenRoomModels.glb` carries
+`BZ_texture_clipboard` along with the floor manager holding it, the green-room
+host, and the two goons on the lift doors, and `MainMenu` finishes with
+`DoEndOfGreenRoomAndUnload`. Until that scene is staged the port writes on a
+plain pale rectangle, marked in the source as the one invented thing on the
+screen. Staging the green room is the next step, and every model it needs is
+already extracted.
+
 ## The text
 
 Only 29 of the 659 strings were resolved before this, because the name-to-id

@@ -181,20 +181,25 @@ func press(handset: int, slot: int) -> void:
 	_setup_press(handset, slot)
 
 
+## <summary>
+## A clipboard menu item is pressed, not scrolled to.
+##
+## DoSimpleMenu's one-button-per-option mode gives each item a ButtonIndex and
+## draws GetIconNameForNthButton beside it, then waits for any buzzer button and
+## matches it back with GetButtonIndexForIconName. That function maps
+## 1, 2, 3, 4 to Blue, Orange, Green and Yellow - so item one is the blue
+## button and there is no cursor at all. The handset reports those colours as
+## slots 4, 3, 2 and 1, which is the order ANSWER_BUTTONS already uses.
+## </summary>
+const MENU_SLOTS := [4, 3, 2, 1]
+
 func _menu_press(slot: int) -> void:
 	var list := items()
-	if list.is_empty():
+	var at := MENU_SLOTS.find(slot)
+	if at < 0 or at >= list.size():
 		return
-
-	match slot:
-		BLUE:
-			_cursor = (_cursor - 1 + list.size()) % list.size()
-		YELLOW:
-			_cursor = (_cursor + 1) % list.size()
-		BUZZ:
-			_choose(str(list[_cursor][1]))
-		GREEN:
-			_back()
+	_cursor = at
+	_choose(str(list[at][1]))
 
 
 func _choose(tag: String) -> void:

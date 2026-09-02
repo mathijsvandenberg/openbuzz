@@ -48,6 +48,7 @@ stretch_shrink = 1
 [node name="SubViewport" type="SubViewport" parent="StageView"]
 unique_name_in_owner = true
 handle_input_locally = false
+own_world_3d = true
 size = Vector2i(800, 600)
 render_target_update_mode = 4
 transparent_bg = false
