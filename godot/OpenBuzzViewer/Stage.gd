@@ -57,6 +57,8 @@ func build(screen: Texture2D, players: int) -> bool:
 	load_cameras(_bundle_dir())
 	load_lights(_bundle_dir())
 
+	Log.info("studio", "set loaded: %d pieces indexed, %d cameras, %d light rigs" % [
+		_pieces.size(), _cameras.size(), _rigs.size()])
 	stage_for(players)
 	if screen != null and show_on_screen(screen) == 0:
 		push_warning("no video wall surface found; the round has nowhere to draw")
@@ -171,8 +173,11 @@ func _process(delta: float) -> void:
 		var at := args.find("--camera")
 		if at >= 0 and at + 1 < args.size():
 			_angle = args[at + 1]
-		if not use_camera(_angle, _camera):
-			push_warning("no camera named %s in cameras.json" % _angle)
+		if use_camera(_angle, _camera):
+			Log.info("camera", "%s pos=%s fov=%.3f near=%.1f far=%.1f" % [
+				_angle, str(_camera.global_position), _camera.fov, _camera.near, _camera.far])
+		else:
+			Log.error("camera", "no camera named %s in cameras.json" % _angle)
 
 		# --lights <mood> lights the set from one of the game's eight rigs.
 		# Without it the set stays unshaded, showing its textures as painted.
@@ -182,8 +187,11 @@ func _process(delta: float) -> void:
 			var scale_at := args.find("--light-scale")
 			if scale_at >= 0 and scale_at + 1 < args.size():
 				scale = float(args[scale_at + 1])
-			if use_mood(args[mood + 1], scale) == 0:
-				push_warning("no light rig named %s" % args[mood + 1])
+			var lit := use_mood(args[mood + 1], scale)
+			if lit == 0:
+				Log.error("lights", "no light rig named %s" % args[mood + 1])
+			else:
+				Log.info("lights", "rig %s: %d lights at scale %.2f" % [args[mood + 1], lit, scale])
 
 		_framed = true
 

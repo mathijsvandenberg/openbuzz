@@ -97,6 +97,11 @@ try
                        Opt(args, "--locale") ?? "NET",
                        int.Parse(Opt(args, "--limit") ?? "400"));
 
+        case "dead":
+            return DeadCommands.Run(
+                Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"),
+                Opt(args, "--api") ?? Path.Combine("docs", "host-api.md"));
+
         case "light":
         {
             var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "list";

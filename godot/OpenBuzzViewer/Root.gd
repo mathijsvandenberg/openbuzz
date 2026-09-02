@@ -10,6 +10,8 @@ var _delay := 0
 
 
 func _ready() -> void:
+	Log.start()
+	Log.info("boot", "args %s" % str(OS.get_cmdline_user_args()))
 	_release_the_joypad()
 
 	var args := OS.get_cmdline_user_args()
@@ -76,3 +78,7 @@ func _release_the_joypad() -> void:
 				InputMap.action_erase_event(action, event)
 
 	focus_mode = Control.FOCUS_NONE
+
+
+func _exit_tree() -> void:
+	Log.close()

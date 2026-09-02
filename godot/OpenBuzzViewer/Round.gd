@@ -319,6 +319,12 @@ func _select_round_dict(round: Dictionary) -> void:
 	# Scores and banked time deliberately survive this: a game carries them
 	# across its rounds, and _pick clears them when a new game starts.
 	_read_layout()
+	Log.info("round", "%s (%s) input=%d score=%d %.0fs  layout question=%s answer=%s block=%s" % [
+		str(_round.get("id","?")), str(_round.get("params","-")),
+		int(_round.input), int(_round.score), float(_round.seconds),
+		str(L.question), str(L.answer), str(L.block)])
+	if _round.get("approximates", "") != "":
+		Log.warn("round", "approximates: %s" % str(_round.approximates))
 	_index = 0
 	_active = 0
 	# Each round counts its own share of questions. Without this reset the
@@ -374,6 +380,11 @@ func _start_question() -> void:
 	if bool(_round.get("reveals", false)):
 		_reveal_rate = 1.0 / maxf(float(L.teletype), 0.001)
 
+	Log.info("question", "#%d '%s' correct=%s (button %d) order=%s clip=%s%s" % [
+		_asked + 1, str(q["question"]), str(q["options"][int(q["correct"])]),
+		_correct, str(_order), str(q["clip"]),
+		"" if _reveal_rate <= 0.0 else "  teletype=%.1f chars/s" % _reveal_rate])
+
 	var path := _wav_dir.path_join("%s.wav" % str(q["clip"]))
 	if FileAccess.file_exists(path):
 		var stream := AudioStreamWAV.load_from_file(path)
@@ -404,6 +415,9 @@ func _process(delta: float) -> void:
 			_next_question()
 
 	_canvas.queue_redraw()
+	if _phase != _logged_phase:
+		Log.trace("phase", "%s -> %s" % [_phase_name_of(_logged_phase), _phase_name()])
+		_logged_phase = _phase
 	var leg := "" if _queue.is_empty() else "game %d/%d - " % [_leg + 1, _queue.size()]
 	_status.text = "%s%s   |   %s   |   pad %s   |   lamps %s   |   %s" % [
 		leg, str(_round.get("id", "-")), _phase_name(),
@@ -549,6 +563,7 @@ func _finish() -> void:
 	_clock = 3.0
 	_audio.stop()
 	_lamps.all(false)
+	Log.info("reveal", "answers=%s correct=%d" % [str(_answers.slice(0, _players)), _correct])
 
 	match int(_round.score):
 		RoundRules.Score.FLAT:
@@ -593,6 +608,16 @@ func _finish() -> void:
 		RoundRules.Score.BOMB:
 			if _answers[_active] == _correct:
 				_note = "DOORGEVEN"
+
+	_log_scores()
+
+
+func _log_scores() -> void:
+	var parts := PackedStringArray()
+	for p in range(_players):
+		parts.append("P%d=%d%s" % [p + 1, _scores[p],
+			"" if _awarded[p] == 0 else " (%+d)" % _awarded[p]])
+	Log.info("score", " ".join(parts))
 
 
 func _explode() -> void:
@@ -701,6 +726,8 @@ func _answer(player: int, choice: int) -> void:
 		return
 	_answers[player] = choice
 	_times[player] = float(_round.seconds) - _clock
+	Log.info("answer", "player %d chose %d (%s) at %.2fs" % [
+		player + 1, choice, "correct" if choice == _correct else "wrong", _times[player]])
 
 	if int(_round.input) == RoundRules.Mode.ALL:
 		_lamps.set_lamps([_answers[0] == -1, _answers[1] == -1, _answers[2] == -1, _answers[3] == -1])
@@ -736,6 +763,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		if slot >= 0:
 			_press(player, ANSWER_BUTTONS[slot])
 			return
+
+var _logged_phase := -1
+
+
+func _phase_name_of(p: int) -> String:
+	var was := _phase
+	_phase = p
+	var out := _phase_name()
+	_phase = was
+	return out
+
 
 func _phase_name() -> String:
 	match _phase:
