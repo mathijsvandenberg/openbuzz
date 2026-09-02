@@ -179,11 +179,33 @@ const BOT_START_AFTER := 3.0
 @onready var _stage: Studio = %Stage
 @onready var _status: Label = %RoundStatus
 @onready var _audio: AudioStreamPlayer = %Audio
+@onready var _speech_out: AudioStreamPlayer = %Speech
+@onready var _effects: Array[AudioStreamPlayer] = [%Effects, %Effects2]
 @onready var _list: ItemList = %Rounds
 @onready var _blurb: Label = %Blurb
 
 var _virtual_pad: Node = null
 var _bundle := Bundle.new()
+var _speech := Speech.new()
+
+## <summary>
+## The buzzer noises.
+##
+## Pressing a buzzer makes a noise, and these are them: the named clips on the
+## disc that are not tied to a character or a moment. The scripts call them
+## exactly that - NEWGetAllGenericBuzzerSounds, alongside
+## SetMakeBuzzNoiseForAllContestantButtons in the round itself.
+##
+## The character-prefixed sets - pb_, pg_, rb_, rg_ and tt_ across fifteen
+## suffixes - are deliberately not in here. They are clearly per-character, but
+## what each prefix means is not settled, and guessing would put the wrong
+## sound on the wrong moment.
+## </summary>
+const BUZZER_NOISES := [
+	"Ahooga", "Air_Horn", "Alarm", "Belch", "Car", "Cat", "Chicken", "Chipmunk",
+	"Dog", "Duck", "Evil", "Frog", "Girl", "Goose", "Horn", "Horn_2", "Horse",
+	"Monkey", "Sheep", "Siren", "Space", "Stadium", "Train", "Turkey", "Whistle",
+]
 var _lamps := Lamps.new()
 var _pad := -1
 var _held := {}
@@ -249,6 +271,12 @@ func _ready() -> void:
 		_status.text = "No questions. Run 'obz audio decode' then 'obz bundle'."
 		return
 
+	if _speech.load_from(_bundle.dir, _wav_dir_of(_bundle)):
+		Log.info("speech", "%d lines indexed (%d commentary, %d fixed)" % [
+			_speech.line_count(), _speech.commentary.size(), _speech.fixed.size()])
+	else:
+		Log.warn("speech", "no speech.json - run 'obz speech'")
+
 	_questions.shuffle()
 	_wav_dir = _bundle.dir.get_base_dir().path_join("wav")
 	_pull_to_front(OS.get_cmdline_user_args())
@@ -307,6 +335,47 @@ func _pull_to_front(args: PackedStringArray) -> void:
 		if hay.to_upper().contains(want):
 			_questions.push_front(_questions.pop_at(i))
 			return
+
+
+static func _wav_dir_of(bundle: Bundle) -> String:
+	return bundle.dir.get_base_dir().path_join("wav")
+
+
+## Plays a named effect from the disc. Two players, so a buzz landing on top of
+## a stinger does not cut it off.
+func _effect(name: String, volume := 0.0) -> void:
+	var path := _wav_dir.path_join("%s.wav" % name)
+	if not FileAccess.file_exists(path):
+		Log.warn("effect", "no %s.wav - run 'obz audio decode'" % name)
+		return
+	Log.trace("effect", name)
+	var stream := AudioStreamWAV.load_from_file(path)
+	if stream == null:
+		return
+
+	for player in _effects:
+		if not player.playing:
+			player.stream = stream
+			player.volume_db = volume
+			player.play()
+			return
+	_effects[0].stream = stream
+	_effects[0].play()
+
+
+## Buzz and Rose. The line is picked from the bucket rather than from the
+## moment, because the context-to-line mapping is not recovered yet - so this
+## makes them audible without claiming they are saying the right thing.
+func _say(kind: String) -> void:
+	var path := _speech.any_clip(kind)
+	if path == "" or not FileAccess.file_exists(path):
+		return
+	var stream := AudioStreamWAV.load_from_file(path)
+	if stream == null:
+		return
+	_speech_out.stream = stream
+	_speech_out.play()
+	Log.info("speech", "%s %s" % [kind, path.get_file()])
 
 
 func _find_pad() -> void:
@@ -371,6 +440,7 @@ func _select_round_dict(round: Dictionary) -> void:
 	_bot_clock = BOT_FILL_AFTER
 	_audio.stop()
 	_lamps.all(true)
+	_say("fixed")
 	if _demo:
 		_start_question()
 
@@ -570,6 +640,9 @@ func _bot_play(_delta: float) -> void:
 			continue
 		# Right about half the time, so the scores move without being perfect.
 		var pick: int = _correct if randf() < 0.5 else randi() % 4
+		# A bot has no handset, but its seat still makes the noise a pressed
+		# button makes - otherwise a table of bots plays in silence.
+		_effect(BUZZER_NOISES[randi() % BUZZER_NOISES.size()], -4.0)
 		_answer(seat, pick)
 		Log.trace("bot", "seat %d answered %d" % [seat + 1, pick])
 
@@ -641,6 +714,13 @@ func _finish() -> void:
 	_audio.stop()
 	_lamps.all(false)
 	Log.info("reveal", "answers=%s correct=%d" % [str(_answers.slice(0, _players)), _correct])
+
+	var anyone_right := false
+	for p in range(_players):
+		if _answers[p] == _correct:
+			anyone_right = true
+	_effect("correct1" if anyone_right else "wrong1")
+	_say("commentary")
 
 	match int(_round.score):
 		RoundRules.Score.FLAT:
@@ -800,6 +880,10 @@ func _press(player: int, slot: int) -> void:
 
 	if _phase != Phase.PLAYING:
 		return
+
+	# Every press makes a noise, which is what the round asks for when it calls
+	# SetMakeBuzzNoiseForAllContestantButtons.
+	_effect(BUZZER_NOISES[randi() % BUZZER_NOISES.size()], -4.0)
 
 	var choice := ANSWER_BUTTONS.find(slot)
 

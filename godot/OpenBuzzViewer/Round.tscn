@@ -124,3 +124,13 @@ text = "  "
 
 [node name="Audio" type="AudioStreamPlayer" parent="."]
 unique_name_in_owner = true
+
+[node name="Speech" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true
+volume_db = 2.0
+
+[node name="Effects" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true
+
+[node name="Effects2" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true

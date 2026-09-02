@@ -108,6 +108,13 @@ try
                 Opt(args, "--preload") ?? "GenericData",
                 int.Parse(Opt(args, "--players") ?? "4"));
 
+        case "speech":
+            return SpeechCommands.Run(
+                Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"),
+                Opt(args, "--wav") ?? Path.Combine(defaultExtract, "wav"),
+                Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "speech.json"),
+                Opt(args, "--locale") ?? "NET");
+
         case "dead":
             return DeadCommands.Run(
                 Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"),

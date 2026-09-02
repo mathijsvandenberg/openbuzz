@@ -76,3 +76,47 @@ obz audio decode     # -> WAV, auto-detecting mono/stereo from the trailer
 
 `decode` takes `--layout split|mono|interleaved` and `--rate` to override
 detection, and `--limit` to cap how many files are converted.
+
+## What is actually on the disc
+
+Decoding everything rather than the default `--limit 50` gives 4573 clips,
+438 minutes:
+
+| Kind | Files | Naming | Notes |
+|---|---:|---|---|
+| Music clips | 4449 total `.vgp`, of which | `KS`, `LS`, `LF`, `LI`, `UK`, numeric | stereo, marker `0x002C` |
+| Dutch commentary | 1768 | `C_<id>_<variation>` | mono, `0x012C`, median 3.3 s |
+| Dutch fixed speech | 590 | `F_<id>_<variation>` | mono, `0x012C`, median 3.5 s |
+| Named effects | 124 `.vag` | `Air_Horn`, `Chicken`, `correct1` | median 1.6 s |
+
+### The speech is fully accounted for
+
+`NETSpeechInfo.clu` is the Dutch table, and it declares every line the build can
+speak through `SetCommentaryVariationCount(id, n)` and
+`SetFixedSpeechVariationCount(id, n)`. It matches the disc exactly:
+
+    commentary   285 lines declared, 285 present, 1768 clips
+    fixed        138 lines declared, 138 present,  590 clips
+
+Nothing declared is missing and nothing present is undeclared. `obz speech`
+checks this and writes the index the engine plays from.
+
+One trap: every language ships its own `SpeechInfo` - DEN, ESP, FIN, FRA, GER,
+ITA, NOR, POR and NET. Scanning them all declares 290 commentary and 198 fixed
+lines, of which this disc has no clips for 5 and 60, which reads as missing
+audio and is really another language's list. `--locale` picks one, and NET is
+the default.
+
+### The effects
+
+The named `.vag` files split into three groups. The plain noises - `Ahooga`,
+`Air_Horn`, `Chicken`, `Duck`, `Horse`, `Whistle` and the rest - are the buzzer
+sounds, which is what the scripts call them: `NEWGetAllGenericBuzzerSounds`,
+and `SetMakeBuzzNoiseForAllContestantButtons` in the round itself. Then the
+stingers: `correct1`, `wrong1`, `timeout`, `points1`, `medal1`, `medal2`,
+`clocktic`, `firework`.
+
+The third group is `pb_`, `pg_`, `rb_`, `rg_` and `tt_`, each across the same
+fifteen suffixes - `ash`, `elv`, `gin`, `kek`, `pnk`, `wal` and so on, which are
+plainly the characters. What the five prefixes mean is not settled, so the port
+does not use them rather than putting the wrong sound on the wrong moment.
