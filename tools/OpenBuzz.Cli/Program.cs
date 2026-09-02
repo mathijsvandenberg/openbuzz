@@ -138,9 +138,10 @@ try
             var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "RWStream");
             return sub switch
             {
-                "list" => LightCommands.List(inDir),
+                "list" => LightCommands.List(inDir, Opt(args, "--stream")),
                 "export" => LightCommands.Export(inDir,
-                                Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "lights.json")),
+                                Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "lights.json"),
+                                Opt(args, "--stream")),
                 _ => Fail($"unknown light subcommand '{sub}'"),
             };
         }
@@ -164,9 +165,10 @@ try
             var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "RWStream");
             return sub switch
             {
-                "list" => CameraCommands.List(inDir),
+                "list" => CameraCommands.List(inDir, Opt(args, "--stream")),
                 "export" => CameraCommands.Export(inDir,
-                                Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "cameras.json")),
+                                Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "cameras.json"),
+                                Opt(args, "--stream")),
                 _ => Fail($"unknown camera subcommand '{sub}'"),
             };
         }

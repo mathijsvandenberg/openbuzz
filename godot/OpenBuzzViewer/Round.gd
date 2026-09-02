@@ -175,6 +175,9 @@ var _front: FrontEnd = null
 ## game tab sets it; the round tab is for picking one round and testing it.
 @export var start_at_front := false
 
+## The foyer, built only when the menus are going to be shown in it.
+var _green: GreenRoom = null
+
 ## How long the join screen stays open, matching the claim screen's own wait.
 var _join_clock := 0.0
 
@@ -344,13 +347,62 @@ func _open_front_end() -> void:
 	_front = FrontEnd.new(_bundle)
 	_front.finished.connect(_on_front_end_done)
 	_join_clock = BOT_FILL_AFTER
+	_enter_green_room()
 	Log.info("front", "main menu")
 	_canvas.queue_redraw()
+
+
+## <summary>
+## Into the foyer, which is where the menus happen.
+##
+## MainMenuAnimationSetup hides the studio and shows the green room, puts the
+## camera on GetCameraNameGreenRoom(5), and writes the menu on a clipboard the
+## floor manager is holding. So the studio is hidden rather than reused, and the
+## menu canvas is hung on the clipboard's own material instead of the video
+## wall's.
+## </summary>
+func _enter_green_room() -> void:
+	if _green != null:
+		return
+
+	# Opt-in until the camera animation is read. ShowStaticClipboard calls
+	# StartAnimation on ANIMATEDCAMERA_GREENROOM05 as well as pointing at it,
+	# and GreenRoomCameras.rp2 carries an ANIMANIMATION group per camera - so
+	# the shot the game frames is a keyframe, not the rest pose the stream
+	# header gives. Until those keyframes are parsed the room loads but the
+	# clipboard is not in front of the lens, so the default stays on the
+	# readable stand-in rather than showing a menu nobody can find.
+	if not OS.get_cmdline_user_args().has("--greenroom"):
+		return
+
+	_green = GreenRoom.new()
+	_green.name = "GreenRoom"
+	_stage.add_sibling(_green)
+
+	if not _green.build(_screen.get_texture(), _stage._find_models(), _bundle.dir):
+		_green.queue_free()
+		_green = null
+		return
+
+	_stage.visible = false
+	_stage.lend_camera(true)
+	_green.aim(_stage.camera())
+
+
+## Back to the studio, once the menus are done with.
+func _leave_green_room() -> void:
+	if _green == null:
+		return
+	_green.queue_free()
+	_green = null
+	_stage.visible = true
+	_stage.lend_camera(false)
 
 
 ## What the menus chose, applied the way the scripts apply it: the length picks
 ## the round queue, and the music genre is GameTypeMenu's historical bias.
 func _on_front_end_done(config: Dictionary) -> void:
+	_leave_green_room()
 	_scores = [0, 0, 0, 0]
 	_banked = [0.0, 0.0, 0.0, 0.0]
 	_index = 0

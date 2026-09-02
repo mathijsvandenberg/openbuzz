@@ -101,6 +101,47 @@ closures, which are loaded as constants in its `main`:
 | button icon offset | `CONST_ClipboardIconOffsetX/Y` | (-44, 3) |
 | fonts | `ClipboardTitleFontName/Scaling`, `ClipboardTextFontName/Scaling` | ClipboardSmall, 1.32 and 1.0 |
 
+## The green room
+
+`MainMenuAnimationSetup` is the foyer, and `ShowStaticClipboard` is the state
+the main menu sits in. In order it calls `HideStudio`, `ShowGreenRoom`,
+`StartAnimation(GetCameraNameGreenRoom(5), GetAnimTypeNameIdle())`,
+`SetCameraAngleForGreenRoom(GetCameraNameGreenRoom(5))`,
+`ShowGreenRoomModels(5)`, a RoundWin animation on the floor manager, and Intro
+animations on green room doors 5 and 6. So the menu is not on the studio's
+video wall - the studio is hidden - it is written on a clipboard a character is
+holding, in another room, under another camera.
+
+Five streams make the room:
+
+| stream | what |
+|---|---|
+| `GreenRoomScene` | the world shell, one sector, 1011 triangles against the 1011 the header declares |
+| `GreenRoomProps` | 26 pieces: walls, floor, rug, spots, pictures, plasma screens, plants, the ON AIR sign, cupboard, chairs and six doors |
+| `GreenRoomModels` | the people - `FMANAGE`, `GRHOST`, `GOON01`, `GOON02` - and `BZ_texture_clipboard` |
+| `GreenRoomCameras` | five, `ANIMATEDCAMERA_GREENROOM01..05` |
+| `GreenRoomLights` | one rig, thirteen lights, all named FOYER |
+
+The port loads all five, and hangs the menu on the clipboard the way the round
+screen is hung on the video wall: find the surface whose material is
+`BZ_texture_clipboard` and give it the viewport texture. That finds three
+surfaces.
+
+**The shot is not right yet, and the reason is in the name.** These are
+`ANIMATEDCAMERA_`s, and `ShowStaticClipboard` calls `StartAnimation` on the
+camera as well as pointing at it. `GreenRoomCameras.rp2` carries an
+`ANIMANIMATION` group per camera - the first is nearly nineteen kilobytes of
+keyframes - so the framing the game uses is a keyframe, not the rest pose the
+stream header gives, which is all that is read so far. Until those keyframes
+are parsed the room loads correctly but the clipboard is not in front of the
+lens.
+
+So it is behind `--greenroom` rather than on by default: a menu nobody can find
+would be worse than the stand-in. Reading the RenderWare keyframes is the next
+step.
+
+## The stand-in sheet
+
 **The sheet itself is still missing.** In the game the menus happen in the green
 room and the clipboard is a prop: `GreenRoomModels.glb` carries
 `BZ_texture_clipboard` along with the floor manager holding it, the green-room

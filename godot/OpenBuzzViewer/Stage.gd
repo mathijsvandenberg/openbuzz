@@ -324,7 +324,26 @@ func _load(path: String) -> Node3D:
 var _angle := "CAMERA_SCREEN"
 
 
+## The stage's camera, and whether it is currently pointing somewhere else.
+##
+## The menus happen in the foyer, under a green room camera, so the stage lends
+## its camera out and stops re-framing until it gets it back.
+var _lent := false
+
+func camera() -> Camera3D:
+	return _camera
+
+
+func lend_camera(lent: bool) -> void:
+	_lent = lent
+	if not lent:
+		_framed = false
+
+
 func _process(delta: float) -> void:
+	if _lent:
+		return
+
 	if not _framed:
 		var args := OS.get_cmdline_user_args()
 		var at := args.find("--camera")

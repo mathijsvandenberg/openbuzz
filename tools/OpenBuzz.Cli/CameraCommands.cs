@@ -6,11 +6,12 @@ using OpenBuzz.Graphics;
 /// Reads StudioCameras.rp2, the file that holds every camera in the show.
 internal static class CameraCommands
 {
+    /// The studio's own cameras; the green room keeps its in GreenRoomCameras.
     private const string File = "StudioCameras.rp2";
 
-    public static int List(string inDir)
+    public static int List(string inDir, string? stream = null)
     {
-        var cameras = Load(inDir, out string path);
+        var cameras = Load(inDir, stream, out string path);
         if (cameras is null) return 1;
 
         Console.WriteLine($"{path}: {cameras.Count} cameras");
@@ -24,9 +25,9 @@ internal static class CameraCommands
         return 0;
     }
 
-    public static int Export(string inDir, string outPath)
+    public static int Export(string inDir, string outPath, string? stream = null)
     {
-        var cameras = Load(inDir, out _);
+        var cameras = Load(inDir, stream, out _);
         if (cameras is null) return 1;
 
         var payload = cameras.ToDictionary(c => c.Name, c => new
@@ -54,9 +55,9 @@ internal static class CameraCommands
         return 0;
     }
 
-    private static List<RwCameraView>? Load(string inDir, out string path)
+    private static List<RwCameraView>? Load(string inDir, string? stream, out string path)
     {
-        path = Path.Combine(inDir, File);
+        path = Path.Combine(inDir, stream ?? File);
         if (!System.IO.File.Exists(path))
         {
             Console.Error.WriteLine($"{path} not found");
