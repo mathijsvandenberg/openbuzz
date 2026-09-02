@@ -1,9 +1,15 @@
 # Speech: which line, and when
 
-Buzz and Rose speak 413 lines on the Dutch disc — 285 commentary (`C_<id>_<n>`)
-and 138 fixed (`F_<id>_<n>`). `NETSpeechInfo` declares every one of them and the
-clips agree exactly, with nothing declared that is missing and nothing present
-that is undeclared.
+Buzz and Rose speak 423 lines on the Dutch disc — 285 commentary
+(`C_<id>_<n>`) and 138 fixed (`F_<id>_<n>`), under 413 distinct ids, because ten
+ids carry both a commentary and a fixed line. `NETSpeechInfo` declares every one
+of them and the clips agree exactly, with nothing declared that is missing and
+nothing present that is undeclared.
+
+The overlap matters when playing a cue: `500000` and `500100` are Points
+Builder's announcement and first rule, and they exist in both buckets. The round
+introduction opens them through `OpenFixedSpeechIntoSpecificSlot`, so the fixed
+one is the one to play.
 
 That says *what exists*. It says nothing about *when it plays*.
 

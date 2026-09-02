@@ -44,7 +44,7 @@ own video wall through the game's own camera.
 | Text / questions | **Solved** - 8374 Dutch questions across 13 pools, all references validate. See [quiz-format.md](docs/quiz-format.md). |
 | `.vgp` audio | **Solved** - 2336-byte sectors; stereo music / mono speech auto-detected from the trailer, 44100 Hz. See [audio-format.md](docs/audio-format.md). |
 | `.vag` audio | **Solved** - standard 48-byte header, declares 11025/22050/44100 Hz |
-| Host and hostess speech | **Round cues recovered** - 413 Dutch lines, and the ten rounds now say the right ones: every round's announcement, shared line and rules come out of its own `DoRoundIntroduction` call. Running commentary is still chosen from a bucket. See [speech-cues.md](docs/speech-cues.md). |
+| Host and hostess speech | **Round cues recovered** - 423 Dutch lines under 413 ids, and the ten rounds now say the right ones: every round's announcement, shared line and rules come out of its own `DoRoundIntroduction` call. Running commentary is still chosen from a bucket. See [speech-cues.md](docs/speech-cues.md). |
 | Controllers | **Real hardware working** - wired Buzz buzzers read as one HID pad (`054C:1000`), lamps driven by `obz-lamps.exe` over HID output reports; virtual panel still behind `IBuzzInputSource` in the C# tools |
 | Playable round | **Working** - Point Builder in `obz-viewer` on real buzzers; `obz-round` is the older C# buzz-in prototype. |
 | Song table | `rri.dat` decoded - 1000 songs, release year + clip name, all clips present |
