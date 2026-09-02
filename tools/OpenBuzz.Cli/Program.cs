@@ -108,6 +108,18 @@ try
                 Opt(args, "--preload") ?? "GenericData",
                 int.Parse(Opt(args, "--players") ?? "4"));
 
+        case "speech" when args.Length > 1 && args[1].Equals("cues", StringComparison.OrdinalIgnoreCase):
+            return SpeechCues.Run(
+                Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"),
+                Opt(args, "--wav") ?? Path.Combine(defaultExtract, "wav"),
+                Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "speech-cues.json"));
+
+        case "speech" when args.Length > 1 && args[1].Equals("usage", StringComparison.OrdinalIgnoreCase):
+            return SpeechCommands.Usage(
+                Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"),
+                Opt(args, "--wav") ?? Path.Combine(defaultExtract, "wav"),
+                Opt(args, "--locale") ?? "NET");
+
         case "speech":
             return SpeechCommands.Run(
                 Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"),

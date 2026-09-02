@@ -2,11 +2,40 @@ using System.Globalization;
 
 namespace OpenBuzz.Cli.Lua;
 
+/// A global the script named: loaded into a register, and either called or
+/// passed on as a value. Round ids travel this way.
+public sealed record LuaGlobal(string Name)
+{
+    public override string ToString() => Name;
+}
+
+/// A table built inline, as `{a, b, c}` is: the constants a SetList gathered.
+public sealed record LuaList(IReadOnlyList<object?> Items)
+{
+    public override string ToString() => "{" + string.Join(", ", Items) + "}";
+}
+
+/// <summary>
+/// A value computed from a constant and something unknown, kept as the
+/// expression rather than thrown away.
+///
+/// The speech ids need this. A per-contestant line is not written out four
+/// times; the script computes it, as in `530200 + seat - 1`. Discarding that
+/// would hide four lines per round that the disc plainly has.
+/// </summary>
+public sealed record LuaExpr(string Text, double Constant)
+{
+    public override string ToString() => Text;
+}
+
 /// A recovered call: a global function name and its constant arguments.
 public sealed record LuaCall(string Function, IReadOnlyList<object?> Args)
 {
     public double? Number(int i) => i < Args.Count && Args[i] is double d ? d : null;
     public string? Text(int i) => i < Args.Count ? Args[i] as string : null;
+    public LuaList? List(int i) => i < Args.Count ? Args[i] as LuaList : null;
+    public LuaExpr? Expr(int i) => i < Args.Count ? Args[i] as LuaExpr : null;
+    public string? Global(int i) => i < Args.Count ? (Args[i] as LuaGlobal)?.Name : null;
 
     public override string ToString() =>
         $"{Function}({string.Join(", ", Args.Select(Format))})";
@@ -38,9 +67,6 @@ public static class LuaDataExtractor
     /// Sentinel for a register whose value we could not determine.
     private sealed record Unknown;
 
-    /// A global that has been loaded but not yet called.
-    private sealed record GlobalRef(string Name);
-
     public static List<LuaCall> Extract(LuaProto root)
     {
         var calls = new List<LuaCall>();
@@ -52,6 +78,10 @@ public static class LuaDataExtractor
     {
         var reg = new object?[Math.Max((int)f.MaxStackSize, 2) + 8];
         var isTarget = JumpTargets(f);
+
+        // How many array slots the NewTable in a register asked for, so the
+        // SetList that fills it knows how far up the stack to read.
+        var pendingSize = new Dictionary<int, int>();
 
         for (int pc = 0; pc < f.Code.Length; pc++)
         {
@@ -65,7 +95,7 @@ public static class LuaDataExtractor
             switch (op)
             {
                 case Op.GetGlobal:
-                    Set(reg, a, new GlobalRef(ConstString(f, LuaOpcodes.Bx(ins))));
+                    Set(reg, a, new LuaGlobal(ConstString(f, LuaOpcodes.Bx(ins))));
                     break;
 
                 case Op.LoadK:
@@ -85,10 +115,39 @@ public static class LuaDataExtractor
                     Set(reg, a, b < reg.Length ? reg[b] : new Unknown());
                     break;
 
+                case Op.NewTable:
+                    pendingSize[a] = b;
+                    Set(reg, a, new Unknown());
+                    break;
+
+                case Op.SetList:
+                case Op.SetListO:
+                {
+                    // The elements sit in the registers just above the table.
+                    int n = pendingSize.GetValueOrDefault(a);
+                    var items = new List<object?>(n);
+                    for (int i = 1; i <= n; i++)
+                        items.Add(a + i < reg.Length && reg[a + i] is not Unknown ? reg[a + i] : null);
+                    if (n > 0) Set(reg, a, new LuaList(items));
+                    break;
+                }
+
+                case Op.Add:
+                case Op.Sub:
+                {
+                    // Only the shape that matters here: a constant and
+                    // something the script works out at run time. Anything
+                    // else stays unknown rather than being half-guessed.
+                    var left = Rk(f, reg, b);
+                    var right = Rk(f, reg, c);
+                    Set(reg, a, Arith(left, right, op == Op.Add) ?? new Unknown());
+                    break;
+                }
+
                 case Op.Call:
                 case Op.TailCall:
                 {
-                    if (a < reg.Length && reg[a] is GlobalRef g)
+                    if (a < reg.Length && reg[a] is LuaGlobal g)
                     {
                         int argc = b == 0 ? 0 : b - 1;   // vararg calls carry no static args
                         var args = new List<object?>(argc);
@@ -109,6 +168,51 @@ public static class LuaDataExtractor
             }
         }
     }
+
+    /// A register or a constant, the way the arithmetic opcodes address them.
+    private static object? Rk(LuaProto f, object?[] reg, int x) =>
+        LuaOpcodes.IsK(x) ? ConstValue(f, LuaOpcodes.Indexk(x))
+                          : (x < reg.Length ? reg[x] : new Unknown());
+
+    /// <summary>
+    /// Folds one arithmetic step. Two constants collapse to a number; a
+    /// constant against a run-time value carries on as an expression, which is
+    /// how the per-seat speech ids survive; anything else is unknown.
+    /// </summary>
+    private static object? Arith(object? left, object? right, bool add)
+    {
+        double sign = add ? 1 : -1;
+
+        if (left is double x && right is double y) return x + sign * y;
+
+        if (left is double c && right is not double)
+            return Term(right) is { } t ? new LuaExpr($"{Num(c)} {(add ? "+" : "-")} {t}", c) : null;
+
+        if (right is double k && left is not double)
+            return Term(left) is { } t
+                ? new LuaExpr($"{t} {(add ? "+" : "-")} {Num(k)}",
+                              (left as LuaExpr)?.Constant + sign * k ?? sign * k)
+                : null;
+
+        return null;
+    }
+
+    /// The readable form of a non-constant operand, or nothing if it is opaque.
+    private static string? Term(object? v) => v switch
+    {
+        LuaExpr e => e.Text,
+        // The seat index is usually a named global, and saying which one is
+        // worth more than calling it n.
+        LuaGlobal g => g.Name,
+        Unknown => "n",
+        null => "n",
+        _ => null,
+    };
+
+    private static string Num(double d) =>
+        d == Math.Floor(d) && Math.Abs(d) < 1e15
+            ? ((long)d).ToString(CultureInfo.InvariantCulture)
+            : d.ToString("0.######", CultureInfo.InvariantCulture);
 
     private static bool[] JumpTargets(LuaProto f)
     {

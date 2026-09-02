@@ -271,9 +271,14 @@ func _ready() -> void:
 		_status.text = "No questions. Run 'obz audio decode' then 'obz bundle'."
 		return
 
+	# One line at a time. The script waits for each to finish before opening
+	# the next, so the queue advances on the same signal.
+	_speech_out.finished.connect(_next_line)
+
 	if _speech.load_from(_bundle.dir, _wav_dir_of(_bundle)):
-		Log.info("speech", "%d lines indexed (%d commentary, %d fixed)" % [
-			_speech.line_count(), _speech.commentary.size(), _speech.fixed.size()])
+		Log.info("speech", "%d lines indexed (%d commentary, %d fixed), %d round cues" % [
+			_speech.line_count(), _speech.commentary.size(), _speech.fixed.size(),
+			_speech.rounds.size()])
 	else:
 		Log.warn("speech", "no speech.json - run 'obz speech'")
 
@@ -363,19 +368,55 @@ func _effect(name: String, volume := 0.0) -> void:
 	_effects[0].play()
 
 
-## Buzz and Rose. The line is picked from the bucket rather than from the
-## moment, because the context-to-line mapping is not recovered yet - so this
-## makes them audible without claiming they are saying the right thing.
+## Buzz and Rose. A known line is spoken by id; where no cue has been recovered
+## the bucket still stands in, and says so, rather than staying silent.
 func _say(kind: String) -> void:
-	var path := _speech.any_clip(kind)
+	_play_clip(_speech.any_clip(kind), kind)
+
+
+## Lines queued to play one after another. RoundIntroduction does the same,
+## waiting for each to finish before opening the next, so they are not spoken
+## over one another.
+var _to_say: Array = []
+
+
+func _play_clip(path: String, what: String) -> bool:
 	if path == "" or not FileAccess.file_exists(path):
-		return
+		return false
 	var stream := AudioStreamWAV.load_from_file(path)
 	if stream == null:
-		return
+		return false
 	_speech_out.stream = stream
 	_speech_out.play()
-	Log.info("speech", "%s %s" % [kind, path.get_file()])
+	Log.info("speech", "%s %s" % [what, path.get_file()])
+	return true
+
+
+## The round introduction, in the order the script plays it: the announcement,
+## then the shared line 111000, then each rule.
+func _introduce_round() -> void:
+	_to_say.clear()
+	var cue := _speech.cue_round(str(_round.params), str(_round.rules))
+	if cue == "":
+		Log.warn("speech", "no introduction cue for %s" % _round.params)
+		_say("fixed")
+		return
+
+	_to_say = _speech.intro_lines(cue)
+	Log.info("speech", "%s introduces %s: %s" % [
+		_speech.intro_speaker(cue), cue, str(_to_say)])
+	_next_line()
+
+
+## The next line in the queue. A line whose clip will not load takes the queue
+## with it if we simply stop - nothing would fire `finished` - so keep going
+## until one actually starts or the queue runs out.
+func _next_line() -> void:
+	while not _to_say.is_empty():
+		var id := str(_to_say.pop_front())
+		if _play_clip(_speech.clip_for("fixed", id), "fixed " + id):
+			return
+		Log.warn("speech", "no clip for line %s" % id)
 
 
 func _find_pad() -> void:
@@ -440,7 +481,7 @@ func _select_round_dict(round: Dictionary) -> void:
 	_bot_clock = BOT_FILL_AFTER
 	_audio.stop()
 	_lamps.all(true)
-	_say("fixed")
+	_introduce_round()
 	if _demo:
 		_start_question()
 

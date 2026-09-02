@@ -22,6 +22,11 @@ extends Node3D
 ## which is how it was found - it does not point at MODEL_JUMBOTRON_INGAME.
 const VIDEOWALL_MATERIAL := "BZ_Set03_Videowall01"
 
+## The stage has four places, however many people are playing. The set carries
+## four `MODEL_PODIUMGLOW_n` markers and the lookup at 0x0013EBB0 asks for all
+## four by name, so this is the set's own number, not a choice made here.
+const SEATS := 4
+
 ## Pieces that belong to the prize room, which is a different scene.
 ## ANIMATEDMODEL_JUMBOTRON is deliberately not here: it is the cabinet the
 ## screen sits in - the bezel and lights in the reference shots - and hiding it
@@ -533,6 +538,11 @@ func stage_for(players: int) -> void:
 		set_piece_visible("MODEL_PODIUMGLOW_%d" % i, multi or i == 1)
 
 	if multi:
-		var copies := _place_podiums("MODEL_PODIUM_MULTI", players)
+		# Always the full row. A two-player game still stands four podiums on
+		# the stage - the set does not shrink to the headcount - and the two
+		# spare ones simply have nobody behind them and nothing on the
+		# nameplate. The four glow markers say so too: they are all visible in
+		# multiplayer regardless of how many are playing.
+		var copies := _place_podiums("MODEL_PODIUM_MULTI", SEATS)
 		Log.info("studio", "podiums: 1 in the set, %d meshes cloned onto seats 2..%d" % [
-			copies, players])
+			copies, SEATS])

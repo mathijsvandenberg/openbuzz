@@ -116,6 +116,64 @@ internal static class SpeechCommands
         return 0;
     }
 
+    /// <summary>
+    /// Where each line is used.
+    ///
+    /// The ids are not a table in the executable - a search of it turns up 34
+    /// scattered words and no run of them - because the scripts name them
+    /// directly. Every round start script names its own block, so the usage is
+    /// recoverable by finding calls whose arguments are known line ids.
+    /// </summary>
+    public static int Usage(string scriptDir, string wavDir, string locale)
+    {
+        var known = new HashSet<int>();
+        foreach (var kind in new[] { "C_", "F_" })
+            foreach (var id in Clips(wavDir, kind).Keys) known.Add(id);
+
+        if (known.Count == 0)
+        {
+            Console.Error.WriteLine($"no decoded clips under {wavDir}");
+            return 1;
+        }
+
+        // script -> function -> ids
+        var use = new Dictionary<string, Dictionary<string, SortedSet<int>>>(StringComparer.Ordinal);
+
+        foreach (var path in Directory.GetFiles(scriptDir, "*.clu", SearchOption.AllDirectories))
+        {
+            var name = Path.GetFileNameWithoutExtension(path);
+            // The SpeechInfo tables only declare counts; they are not usage.
+            if (name.EndsWith("SpeechInfo", StringComparison.Ordinal)) continue;
+
+            LuaProto proto;
+            try { proto = LuaUndump.Load(File.ReadAllBytes(path), name); }
+            catch { continue; }
+
+            foreach (var call in LuaDataExtractor.Extract(proto))
+                for (int i = 0; i < call.Args.Count; i++)
+                {
+                    var n = call.Number(i);
+                    if (n is null) continue;
+                    int id = (int)n.Value;
+                    if (!known.Contains(id)) continue;
+
+                    if (!use.TryGetValue(name, out var byFn)) use[name] = byFn = [];
+                    if (!byFn.TryGetValue(call.Function, out var set)) byFn[call.Function] = set = [];
+                    set.Add(id);
+                }
+        }
+
+        Console.WriteLine($"{known.Count} lines on the disc; {use.Count} scripts name one.");
+        Console.WriteLine();
+        foreach (var (script, byFn) in use.OrderBy(k => k.Key, StringComparer.Ordinal))
+        {
+            Console.WriteLine(script);
+            foreach (var (fn, set) in byFn.OrderBy(k => k.Key, StringComparer.Ordinal))
+                Console.WriteLine($"   {fn,-44} {string.Join(", ", set)}");
+        }
+        return 0;
+    }
+
     /// The variations actually present, by line id.
     private static Dictionary<int, List<int>> Clips(string wavDir, string prefix)
     {
