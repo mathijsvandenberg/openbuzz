@@ -110,6 +110,10 @@ func _read_layout() -> void:
 		# Seconds per character for the letter-at-a-time reveal. The game calls
 		# it a teletype rate, which is what Flitsronde does.
 		teletype = _bundle.layout_of("GeneralTextTeletypeRate", 0.04, id),
+
+		# Where the answer icon sits in a contestant viewport.
+		answer_icon_right = _bundle.layout_of("ViewportAnswerIconRightOffset", 3, id),
+		answer_icon_bottom = _bundle.layout_of("ViewportAnswerIconBottomOffset", 3, id),
 	}
 
 
@@ -1029,6 +1033,14 @@ func _draw_cards(offset: Vector2, scale: float) -> void:
 			tint = Color(1.5, 1.5, 1.5)
 
 		var bar: float = side * 0.31
+		# The portrait first, then the surround over its edge. The frame sits
+		# slightly outside the picture, which is what ViewportSurroundXOffset
+		# and YOffset (-6, -8) describe.
+		var face: Texture2D = _stage.portrait(p)
+		if face != null:
+			_canvas.draw_texture_rect(face, _at(offset, scale, x + 4, top + 4,
+				side - 8, side - 8), false, tint)
+
 		_sprite(offset, scale, "PortraitSurroundGrey", x, top, side, side, tint)
 		_sprite(offset, scale, "ViewportBarGrey", x, top + side, side, bar, tint)
 
@@ -1044,11 +1056,16 @@ func _draw_cards(offset: Vector2, scale: float) -> void:
 		_text(offset, scale, "GeneralLarge", middle,
 			x, top + 28, side, 28, 0.62, colour, "Centre")
 
-		# The chosen answer sits in the corner of the portrait, as in the game.
+		# The chosen answer goes in the bottom-right corner of the viewport,
+		# inset by ViewportAnswerIconRightOffset and Bottom - which is exactly
+		# what the round asks for: the trace has Points Builder calling
+		# AddAnswerIconsAtBottomRightForAllContestants(3, 3).
 		if answered:
 			var swatch: Color = COLOURS[_answers[p]] if _phase == Phase.REVEAL else Color(0.55, 0.58, 0.66)
+			var icon: float = float(L.icon_size)
 			_sprite(offset, scale, BUZZER_SPRITES[_answers[p]],
-				x + L.block_icon.x - 40, top + L.block_icon.y, 22, 22,
+				x + side - icon - float(L.answer_icon_right),
+				top + side - icon - float(L.answer_icon_bottom), icon, icon,
 				Color.WHITE if _phase == Phase.REVEAL else swatch)
 
 		# The name bar carries the buzz time in the speed round, because that

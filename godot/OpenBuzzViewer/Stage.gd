@@ -65,7 +65,66 @@ func build(screen: Texture2D, players: int) -> bool:
 
 	_add_hostess(dir)
 	_add_contestants(dir, players)
+	_make_portraits(players)
 	return true
+
+
+## <summary>
+## The contestant viewports.
+##
+## QuizSupportCode_ViewportDisplays calls these viewports, and they are not a
+## metaphor: one holds a border, a name bar, corner icons and a model, and
+## SetupViewportPortraitDisplayGraphicAndPosition puts the portrait in it. The
+## player cards along the bottom of the round screen are these.
+##
+## Which is what CAMERA_CONTESTANT_1..4 are for. They were the four cameras
+## whose convention got checked against the contestant marks, aiming at their
+## own contestant to a cosine of 0.997 - and this is the shot they were aiming
+## for. Each viewport shares the studio world and looks through its own one.
+## </summary>
+const PORTRAIT_SIZE := 192
+
+var _portraits: Array[SubViewport] = []
+
+
+func _make_portraits(players: int) -> void:
+	for seat in range(players):
+		var view := SubViewport.new()
+		view.name = "Portrait%d" % (seat + 1)
+		view.size = Vector2i(PORTRAIT_SIZE, PORTRAIT_SIZE)
+		view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		view.transparent_bg = false
+		# Shares the studio rather than building a second one, so the portrait
+		# is the contestant on the real set under the real lights.
+		view.world_3d = get_viewport().world_3d
+		view.own_world_3d = false
+		add_child(view)
+
+		var camera := Camera3D.new()
+		# Only this seat's contestant. The name the game uses for these is a
+		# portrait display, and a portrait is one person.
+		camera.cull_mask = 1 << (seat + 1)
+		view.add_child(camera)
+
+		var angle := "CAMERA_CONTESTANT_%d" % (seat + 1)
+		if use_camera(angle, camera):
+			Log.info("viewport", "seat %d portrait through %s" % [seat + 1, angle])
+		else:
+			Log.error("viewport", "no %s" % angle)
+
+		_portraits.append(view)
+
+
+static func _set_layers(node: Node, mask: int) -> void:
+	if node is VisualInstance3D:
+		(node as VisualInstance3D).layers = mask
+	for child in node.get_children():
+		_set_layers(child, mask)
+
+
+## The live portrait for a seat, for the round screen to draw in its card.
+func portrait(seat: int) -> Texture2D:
+	return null if seat < 0 or seat >= _portraits.size() else _portraits[seat].get_texture()
 
 
 ## The sixteen contestants, in the order their costume models sit on the disc.
@@ -109,10 +168,21 @@ func _add_contestants(dir: String, players: int) -> void:
 		# angle by hand had them all in profile.
 		figure.global_transform = marker_transform(mark)
 
+		# Each contestant also sits on a layer of their own, so a portrait
+		# viewport can show that one person and nothing else. The set would
+		# otherwise be in the way: CAMERA_CONTESTANT_1 looks straight through
+		# podium 1 to reach contestant 1.
+		_set_layers(figure, 1 | (1 << (seat + 1)))
+
+		# Each figure's own player, found in its own scene. _load parks one in
+		# a shared member, which is fine for the single hostess and quietly
+		# wrong for four contestants: every one of them ended up driving
+		# whichever model happened to load last.
+		var own := _find(figure, "AnimationPlayer") as AnimationPlayer
 		_contestants.append(figure)
-		if _player != null:
-			_contestant_players.append(_player)
-			_play_idle_on(_player)
+		if own != null:
+			_contestant_players.append(own)
+			_play_idle_on(own)
 
 		Log.info("cast", "seat %d: %s at %s facing %s" % [
 			seat + 1, name, str(figure.global_position),
