@@ -44,66 +44,68 @@ const POINTS := 1000
 ## Read off that screen, not guessed.
 const SPEED_POINTS := [400, 300, 200, 100]
 
-## Ordered as the game lists them in RoundParameters.
+## Ordered as the game lists them in RoundParameters. `params` is the round's
+## own table in that structure, which is where its layout overrides live - the
+## three single-player rounds move the contestant block to StartX 228.
 static func all() -> Array[Dictionary]:
 	return [
 		{
-			id = "points_builder", rules = "PointsBuilder",
+			id = "points_builder", params = "PointsBuilderRoundID", rules = "PointsBuilder",
 			input = Mode.ALL, score = Score.FLAT, seconds = 15.0,
 			blurb = "Everyone answers the same question. AllowAllContestantsToAnswer, 15 seconds, flat award.",
 			approximates = "",
 		},
 		{
-			id = "fastest_finger", rules = "FastestFinger",
+			id = "fastest_finger", params = "FastestFingerFirstID", rules = "FastestFinger",
 			input = Mode.ALL, score = Score.SPEED, seconds = 15.0,
 			blurb = "Everyone answers; the quickest correct answer is worth the most.",
 			approximates = "",
 		},
 		{
-			id = "quickfire", rules = "Quickfire",
+			id = "quickfire", params = "LookBeforeYouLeapRoundID", rules = "Quickfire",
 			input = Mode.BUZZ_THEN_ANSWER, score = Score.FLAT, seconds = 15.0,
 			blurb = "The question and answers arrive a letter at a time. Buzz as soon as you think you know, then pick.",
 			reveals = true,
 			approximates = "The reveal finishes about two fifths into the clock, set against the reference shot; the real rate is engine-side.",
 		},
 		{
-			id = "snap", rules = "Snap",
+			id = "snap", params = "SnapRoundID", rules = "Snap",
 			input = Mode.BUZZ_ON_CUE, score = Score.FLAT, seconds = 12.0,
 			blurb = "Statements come up one at a time; buzz on the one that fits the clip.",
 			approximates = "The game scrolls its own statements; these are the question's four options.",
 		},
 		{
-			id = "trigger_finger", rules = "TriggerFinger",
+			id = "trigger_finger", params = "PointStealerRoundID", rules = "TriggerFinger",
 			input = Mode.BUZZ_ON_CUE, score = Score.STEAL, seconds = 12.0,
 			blurb = "Buzz when the correct answer shows, then take points off a player of your choosing.",
 			approximates = "The game scrolls answers on a timer; these come up one per second.",
 		},
 		{
-			id = "buzz_stop", rules = "BuzzStop",
+			id = "buzz_stop", params = "BuzzStopRoundID", rules = "BuzzStop",
 			input = Mode.CHASE, score = Score.FLAT, seconds = 15.0,
 			blurb = "The clip plays and the lamp travels. When the music stops, whoever is lit takes the question.",
 			approximates = "",
 		},
 		{
-			id = "off_loader", rules = "OffLoader",
+			id = "off_loader", params = "OffLoaderRoundID", rules = "OffLoader",
 			input = Mode.ACTIVE, score = Score.FLAT, seconds = 15.0,
 			blurb = "Each player in turn hears a clip and pushes the question onto somebody else.",
 			approximates = "",
 		},
 		{
-			id = "pass_the_bomb", rules = "PassTheBomb",
+			id = "pass_the_bomb", params = "PassTheBombRoundID", rules = "PassTheBomb",
 			input = Mode.ACTIVE, score = Score.BOMB, seconds = 8.0,
 			blurb = "Answer right and the bomb goes to the player beside you. Whoever holds it when it goes off loses.",
 			approximates = "The fuse is random between 20 and 40 seconds; the real one is engine-side.",
 		},
 		{
-			id = "time_builder", rules = "TimeBuilder",
+			id = "time_builder", params = "TimeBuilderRoundID", rules = "TimeBuilder",
 			input = Mode.ACTIVE, score = Score.TIME, seconds = 15.0,
 			blurb = "One player at a time. Answer quickly to bank seconds for the last round.",
 			approximates = "Seconds banked are the time left on the clock; the real curve is engine-side.",
 		},
 		{
-			id = "hot_seat", rules = "HotSeat",
+			id = "hot_seat", params = "HotSeatRoundID", rules = "HotSeat",
 			input = Mode.ACTIVE, score = Score.STAKE, seconds = 60.0,
 			blurb = "One player spends the time they banked answering as many questions as they can.",
 			approximates = "Without a Time Builder round before it, the clock starts at 60 seconds.",

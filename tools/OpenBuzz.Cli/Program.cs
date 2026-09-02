@@ -97,6 +97,19 @@ try
                        Opt(args, "--locale") ?? "NET",
                        int.Parse(Opt(args, "--limit") ?? "400"));
 
+        case "layout":
+        {
+            var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "show";
+            var inDir = Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts");
+            return sub switch
+            {
+                "show" => LayoutCommands.Show(inDir, Opt(args, "--filter")),
+                "export" => LayoutCommands.Export(inDir,
+                                Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "layout.json")),
+                _ => Fail($"unknown layout subcommand '{sub}'"),
+            };
+        }
+
         case "camera":
         {
             var sub = args.Length > 1 ? args[1].ToLowerInvariant() : "list";

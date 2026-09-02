@@ -52,21 +52,67 @@ const ORDINALS := ["EERSTE", "TWEEDE", "DERDE", "VIERDE", "VIJFDE", "ZESDE", "ZE
 ## being painted over it.
 const PANEL := CANVAS
 
-## Layout, as fractions of the screen measured off the reference shots and
-## written here in the game's own 640 x 480.
+## Layout. Every number here is read out of GenericData.clu at load, not
+## measured: the game keeps its 640 x 480 screen layout there as plain constant
+## assignment. The fallbacks are what the extraction would have to fail for.
+##
+## The one exception is the countdown pie, and it is marked as such below.
+var L := {}
+
+
+func _read_layout() -> void:
+	var id: String = str(_round.get("params", ""))
+	L = {
+		question = Rect2(
+			_bundle.layout_of("QuestionTextPositionX", 142, id),
+			_bundle.layout_of("QuestionTextPositionY", 6, id),
+			_bundle.layout_of("QuestionTextWidth", 430, id),
+			_bundle.layout_of("QuestionTextHeight", 80, id)),
+		answer = Rect2(
+			_bundle.layout_of("AnswerPositionXStart", 142, id),
+			_bundle.layout_of("AnswerPositionYStart", 92, id),
+			_bundle.layout_of("AnswerPositionWidth", 390, id),
+			_bundle.layout_of("AnswerPositionHeight", 55, id)),
+		answer_x_inc = _bundle.layout_of("AnswerPositionXInc", 0, id),
+		answer_y_inc = _bundle.layout_of("AnswerPositionYInc", 64, id),
+
+		# The colour square sits left of the answer text by this much, and a
+		# one-line answer drops it by that much.
+		icon_dx = _bundle.layout_of("CONST_QuestionAnswerOffsetX", -44, id),
+		icon_dy = _bundle.layout_of("CONST_QuestionAnswerOffsetY_OneLine", 11, id),
+		icon_size = _bundle.layout_of("ContestantAnswerIconWidth", 32, id),
+
+		# The contestant blocks along the bottom.
+		block = Rect2(
+			_bundle.layout_of("StartX", 132, id),
+			_bundle.layout_of("StartY", 360, id),
+			_bundle.layout_of("Width", 80, id),
+			_bundle.layout_of("Height", 80, id)),
+		block_gap = _bundle.layout_of("BlockGap", 25, id),
+		block_icon = Vector2(
+			_bundle.layout_of("ContestantAnswerIconXOffset", 60, id),
+			_bundle.layout_of("ContestantAnswerIconYOffset", 59, id)),
+		rank_icon = Vector2(
+			_bundle.layout_of("ContestantRankIconXOffset", 50, id),
+			_bundle.layout_of("ContestantRankIconYOffset", -30, id)),
+
+		title = Rect2(
+			_bundle.layout_of("InstructionsTitlePositionX", 64, id),
+			_bundle.layout_of("InstructionsTitlePositionY", 5, id),
+			_bundle.layout_of("InstructionsTitleWidth", 500, id),
+			_bundle.layout_of("InstructionsTitleHeight", 130, id)),
+
+		question_scale = _bundle.layout_of("QuestionFontScaling", 1.0, id),
+		answer_scale = _bundle.layout_of("AnswerFontScaling", 0.9, id),
+	}
+
+
+## The countdown pie is the one thing on this screen still placed by eye. The
+## script has a CountdownTimerIcon at (523, 17), but that is the top right and
+## the reference plainly shows the pie at the top left, so it is a different
+## element and this position is measured off the shot, not read.
 const CLOCK_CENTRE := Vector2(48, 45)
 const CLOCK_RADIUS := 40.0
-const QUESTION_BOX := Rect2(122, 12, PANEL.x - 146, 70)
-const ANSWER_TOP := 113.0
-const ANSWER_STEP := 59.0
-const ANSWER_SQUARE := 30.0
-const ANSWER_LEFT := 102.0
-const ANSWER_TEXT := 148.0
-const CARD_LEFT := 102.0
-const CARD_TOP := 338.0
-const CARD_SIZE := 101.0
-const CARD_BAR := 31.0
-const CARD_GAP := 10.0
 
 const CHASE_STEP := 0.16
 const CUE_STEP := 1.0
@@ -252,6 +298,7 @@ func _select_round_dict(round: Dictionary) -> void:
 		"\n\n  Approximated: " + str(_round.approximates) if _round.approximates != "" else "")
 	# Scores and banked time deliberately survive this: a game carries them
 	# across its rounds, and _pick clears them when a new game starts.
+	_read_layout()
 	_index = 0
 	_active = 0
 	# Each round counts its own share of questions. Without this reset the
@@ -767,7 +814,8 @@ func _draw_intro(offset: Vector2, scale: float) -> void:
 			112, 56, PANEL.x - 140, 20, 0.7, Color(0.72, 0.76, 0.86))
 
 	_text(offset, scale, "RoundInstructionsLarge", RoundRules.title(_round, _bundle.text),
-		112, 78, PANEL.x - 140, 54, 1.15, Color.WHITE)
+		L.title.position.x + 48, L.title.position.y + 60,
+		L.title.size.x - 48, 54, 1.15, Color.WHITE)
 
 	if int(_round.score) == RoundRules.Score.SPEED:
 		_draw_speed_table(offset, scale)
@@ -810,8 +858,8 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 	# first part of the clock typing it out a letter at a time.
 	var asked := str(q["question"])
 	_text(offset, scale, "GeneralLarge", "%d:%s" % [_asked + 1, _typed(asked)],
-		QUESTION_BOX.position.x, QUESTION_BOX.position.y,
-		QUESTION_BOX.size.x, QUESTION_BOX.size.y, 0.9, Color.WHITE)
+		L.question.position.x, L.question.position.y,
+		L.question.size.x, L.question.size.y, L.question_scale, Color.WHITE)
 
 	if int(_round.score) == RoundRules.Score.BOMB and _phase == Phase.PLAYING:
 		_text(offset, scale, "RoundInstructionsSmall", "%0.0f" % maxf(_fuse, 0.0),
@@ -819,7 +867,9 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 
 	var options: Array = q["options"]
 	for i in range(options.size()):
-		var y := ANSWER_TOP + i * ANSWER_STEP
+		var box: Rect2 = L.answer
+		var y: float = box.position.y + i * float(L.answer_y_inc)
+		var x: float = box.position.x + i * float(L.answer_x_inc)
 		var body := str(options[_order[i]])
 		var shown := _typed(body)
 
@@ -828,11 +878,13 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 			continue
 
 		# A rule under each answer, drawn with the game's own hairline sprite.
-		_sprite(offset, scale, "hor_line", ANSWER_TEXT, y + 32.0,
-			PANEL.x - ANSWER_TEXT - 24.0, 2, Color(1, 1, 1, 0.22))
+		_sprite(offset, scale, "hor_line", x, y + box.size.y - 8.0,
+			box.size.x, 2, Color(1, 1, 1, 0.22))
 
 		# The colour squares are the game's art, not drawn boxes.
-		_sprite(offset, scale, ANSWER_SPRITES[i], ANSWER_LEFT, y, ANSWER_SQUARE, ANSWER_SQUARE)
+		var icon: float = float(L.icon_size)
+		_sprite(offset, scale, ANSWER_SPRITES[i],
+			x + float(L.icon_dx), y + float(L.icon_dy), icon, icon)
 
 		var tint := Color.WHITE
 		if _phase == Phase.REVEAL:
@@ -844,11 +896,11 @@ func _draw_question(offset: Vector2, scale: float) -> void:
 		if shown != "":
 			# On-cue rounds have the screen to themselves, so their statement -
 			# which is a whole sentence - gets the width back from the square.
-			var room := PANEL.x - ANSWER_TEXT - 24.0
+			var room: float = box.size.x
 			if on_cue:
-				room = PANEL.x - ANSWER_TEXT - 8.0
+				room = PANEL.x - x - 16.0
 			_line(offset, scale, "GeneralLarge", shown,
-				ANSWER_TEXT, y - 2, room, 34, 0.82, tint)
+				x, y, room, box.size.y, float(L.answer_scale), tint)
 
 	# Snap and Trigger Finger deliberately show one option at a time; without
 	# saying so it just looks like the others failed to draw.
@@ -902,7 +954,11 @@ func _draw_cards(offset: Vector2, scale: float) -> void:
 	var bomb := int(_round.score) == RoundRules.Score.BOMB
 
 	for p in range(_players):
-		var x := CARD_LEFT + p * (CARD_SIZE + CARD_GAP)
+		var block: Rect2 = L.block
+		var pitch: float = block.size.x + float(L.block_gap)
+		var x: float = block.position.x + p * pitch
+		var top: float = block.position.y
+		var side: float = block.size.x
 		var answered: bool = _answers[p] != -1
 		var spot: bool = (live and p == _active) or (_winner == p)
 
@@ -919,9 +975,9 @@ func _draw_cards(offset: Vector2, scale: float) -> void:
 		elif spot:
 			tint = Color(1.5, 1.5, 1.5)
 
-		_sprite(offset, scale, "PortraitSurroundGrey", x, CARD_TOP, CARD_SIZE, CARD_SIZE, tint)
-		_sprite(offset, scale, "ViewportBarGrey",
-			x, CARD_TOP + CARD_SIZE, CARD_SIZE, CARD_BAR, tint)
+		var bar: float = side * 0.31
+		_sprite(offset, scale, "PortraitSurroundGrey", x, top, side, side, tint)
+		_sprite(offset, scale, "ViewportBarGrey", x, top + side, side, bar, tint)
 
 		# What the card holds: the running score, or banked seconds in the two
 		# rounds that trade in time.
@@ -933,13 +989,13 @@ func _draw_cards(offset: Vector2, scale: float) -> void:
 			middle = ("+%d" % _awarded[p]) if _awarded[p] > 0 else str(_awarded[p])
 			colour = Color(0.6, 1.0, 0.7) if _awarded[p] > 0 else Color(0.95, 0.5, 0.45)
 		_text(offset, scale, "GeneralLarge", middle,
-			x, CARD_TOP + 28, CARD_SIZE, 28, 0.62, colour, "Centre")
+			x, top + 28, side, 28, 0.62, colour, "Centre")
 
 		# The chosen answer sits in the corner of the portrait, as in the game.
 		if answered:
 			var swatch: Color = COLOURS[_answers[p]] if _phase == Phase.REVEAL else Color(0.55, 0.58, 0.66)
 			_sprite(offset, scale, BUZZER_SPRITES[_answers[p]],
-				x + CARD_SIZE - 28, CARD_TOP + CARD_SIZE - 28, 22, 22,
+				x + L.block_icon.x - 40, top + L.block_icon.y, 22, 22,
 				Color.WHITE if _phase == Phase.REVEAL else swatch)
 
 		# The name bar carries the buzz time in the speed round, because that
@@ -948,28 +1004,29 @@ func _draw_cards(offset: Vector2, scale: float) -> void:
 		if int(_round.score) == RoundRules.Score.SPEED and answered:
 			label = "%0.2f" % _times[p]
 		_text(offset, scale, "RoundInstructionsSmall", label,
-			x, CARD_TOP + CARD_SIZE + 5, CARD_SIZE, 18, 0.62, Color.WHITE, "Centre")
+			x, top + side + 5, side, 18, 0.62, Color.WHITE, "Centre")
 
 		# The rosette for where they finished, once the answers are in.
 		if _phase == Phase.REVEAL and _places[p] >= 0:
-			_sprite(offset, scale, PLACE_SPRITES[_places[p]], x - 12, CARD_TOP - 14, 46, 35)
+			_sprite(offset, scale, PLACE_SPRITES[_places[p]],
+				x + L.rank_icon.x - 50, top + L.rank_icon.y, 46, 35)
 
 		if bomb and spot:
-			_draw_bomb(offset, scale, x)
+			_draw_bomb(offset, scale, x, top, side)
 
 
 ## The bomb rides with whoever is holding it, and goes off over their card.
-func _draw_bomb(offset: Vector2, scale: float, x: float) -> void:
+func _draw_bomb(offset: Vector2, scale: float, x: float, top: float, side: float) -> void:
 	if _burst > 0.0:
 		_sprite(offset, scale, "PIP_flame",
-			x - 28, CARD_TOP - 34, CARD_SIZE + 56, 84, Color(1, 1, 1, minf(_burst, 1.0)))
-		_sprite(offset, scale, "PIP_boom", x - 16, CARD_TOP + 6, CARD_SIZE + 32, 58)
+			x - 28, top - 34, side + 56, 84, Color(1, 1, 1, minf(_burst, 1.0)))
+		_sprite(offset, scale, "PIP_boom", x - 16, top + 6, side + 32, 58)
 		return
 
-	_sprite(offset, scale, "PIP_bomb", x + CARD_SIZE - 22, CARD_TOP - 30, 38, 44)
+	_sprite(offset, scale, "PIP_bomb", x + side - 22, top - 30, 38, 44)
 	# The spark on the fuse quickens as the fuse runs down.
 	if _fuse > 0.0 and fmod(_fuse, maxf(_fuse * 0.12, 0.18)) < 0.09:
-		_sprite(offset, scale, "PIP_spark", x + CARD_SIZE - 4, CARD_TOP - 40, 20, 20)
+		_sprite(offset, scale, "PIP_spark", x + side - 4, top - 40, 20, 20)
 
 
 func _draw_scores(offset: Vector2, scale: float) -> void:

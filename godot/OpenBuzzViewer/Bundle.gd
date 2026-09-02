@@ -14,6 +14,9 @@ var fonts := {}
 var text := {}
 var quiz := []
 
+## The screen layout, out of GenericData.clu. `obz layout export` writes it.
+var layout := {}
+
 var _atlases := {}
 var _sheets := {}
 
@@ -23,6 +26,7 @@ func load_from(start: String) -> bool:
 	if dir.is_empty():
 		return false
 
+	layout = _json(dir.path_join("layout.json"))
 	sprites = _json(dir.path_join("sprites.json"))
 	fonts = _json(dir.path_join("fonts.json"))
 	text = _json(dir.path_join("text.json"))
@@ -55,6 +59,30 @@ static func base_dir() -> String:
 func _json(path: String) -> Dictionary:
 	var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
 	return parsed if parsed is Dictionary else {}
+
+
+## One layout number, by name.
+##
+## The game keeps these in RoundParameters, with a Defaults table and per-round
+## overrides, so a round asks for its own value and falls back to the default.
+## `fallback` is only reached when the extraction could not resolve a field,
+## which it reports as missing rather than guessing.
+func layout_of(key: String, fallback: float, round_id := "") -> float:
+	var rounds: Dictionary = layout.get("rounds", {})
+	if round_id != "" and rounds.has(round_id):
+		var own: Dictionary = rounds[round_id]
+		if own.has(key) and own[key] is float:
+			return float(own[key])
+
+	var defaults: Dictionary = rounds.get("DefaultsID", {})
+	if defaults.has(key) and defaults[key] is float:
+		return float(defaults[key])
+
+	var globals: Dictionary = layout.get("globals", {})
+	if globals.has(key) and globals[key] is float:
+		return float(globals[key])
+
+	return fallback
 
 
 func atlas(name: String) -> Texture2D:
