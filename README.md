@@ -15,44 +15,21 @@ which describe the interface rather than reproduce the implementation.
 
 ## Why
 
-*Buzz!: The Music Quiz* is the first of thirteen Buzz! titles Relentless
-Software made for Sony between 2005 and 2010, and the series sold over ten
-million copies. The studio itself came out of a collapse: David Amor and Andrew
-Eades had been at Computer Artworks' Brighton office when it went into
-receivership in October 2003, talked Sony Computer Entertainment Europe into
-letting them finish an unreleased DJ simulation, and set Relentless up 36 hours
-after that meeting. The DJ game became Buzz!. The first one passed a million
-copies on its own, and the second stayed in the UK PlayStation 2 top twenty for
-a year.
+Relentless Software made the Buzz! series, and made it beautifully - music,
+sport, general knowledge, film. More than a dozen titles between 2005 and 2010,
+over ten million sold, on PlayStation 2 and later PlayStation 3 and PSP.
 
-They spent the years after the series on other things - *Blue Toad Murder
-Files*, which they self-published in 2009 and which sold over half a million,
-then Kinect titles and mobile. Around twenty people were laid off in February
-2011 as the studio moved to digital-only publishing; David Amor left in 2012
-after *Kinect Nat Geo TV*; and in August 2016, thirteen years in, Relentless
-closed and made everyone redundant, with an unannounced PS4 and Xbox One title
-still in development.
+A PlayStation 4 version never came. A PS5 plays PS4 games, but neither plays a
+PS2 or PS3 disc, so the series now needs old hardware or an emulator. Relentless
+closed in August 2016, so there will be no PS4 or PS5 Buzz! either - waiting is
+not an option.
 
-So the series is finished. There will not be a fourteenth Buzz!, and the
-PlayStation 2 is not getting younger.
-
-**Emulation is a real option and this project is not a substitute for it.**
-PCSX2 plays these games, and it does drive the buzzer lamps: the USBqemu Buzz
-mod added output-report support years ago, and native support landed in PCSX2
-nightlies around December 2022, with the wired handsets registering
-automatically. If you want to play *Buzz!: The Music Quiz* as it shipped,
-emulate it - that is the better path, and it is the one that preserves the
-original exactly.
-
-What emulation cannot do is change the game. It runs a fixed binary, so the
-question pool is the one pressed in 2005, the ten round types are the ten that
-exist, and nothing new can be added. A port can: new questions and music, new
-locales, round formats Relentless never built, a scoring model you can actually
-read and alter. That is the reason for this repository. Everything here is
-written to keep the original's own data and behaviour as the reference - the
-layout comes out of the game's scripts, the cameras out of its camera file, the
-set out of its own streams - so that anything added sits on top of the real
-thing rather than an approximation of it.
+Emulation is a good option and this is no substitute for it; PCSX2 even drives
+the buzzer lamps. But it runs a fixed binary. The questions are the ones pressed
+in 2005, the ten round types are the ten that exist, and the pacing is the
+pacing - and the PS2 game does drag in party mode. A port can add questions,
+locales and round formats, and can tighten the flow between them, which is the
+difference between a quiz and a party.
 
 ## Status
 
