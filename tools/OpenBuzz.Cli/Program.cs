@@ -127,6 +127,15 @@ try
                 Opt(args, "--out") ?? Path.Combine(defaultExtract, "godot2d", "speech.json"),
                 Opt(args, "--locale") ?? "NET");
 
+        case "text":
+            return TextTodo.Run(
+                Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"),
+                Opt(args, "--map") ?? Path.Combine(repoRoot, "docs", "text-key-map.txt"),
+                Opt(args, "--strings") ?? Path.Combine(defaultExtract, "BM1", "Text",
+                    Opt(args, "--locale") ?? "NET", "default.str"),
+                Opt(args, "--out") ?? Path.Combine(defaultExtract, "text-todo.md"),
+                Path.Combine(defaultExtract, "godot2d", "sprites.json"));
+
         case "dead":
             return DeadCommands.Run(
                 Opt(args, "--in") ?? Path.Combine(defaultExtract, "Scripts"),
